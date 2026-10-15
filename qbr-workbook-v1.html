@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QBR Workbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F3F6;--surface:#FFFFFF;--sunk:#F7F8FA;--ink:#1C2130;--muted:#5B6274;--line:#D9DCE4;
+  --plum:#714B67;--plum-ink:#FFFFFF;--plum-soft:#F2EAF0;--teal:#017E84;--teal-soft:#DFF1F1;
+  --amber:#8F5E0E;--amber-soft:#FBEFD8;--red:#B23A3A;--red-soft:#F8E1E1;--green:#1F7A4D;--green-soft:#E0F2E8;
+  --fd:"Bricolage Grotesque",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --fb:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#13151B;--surface:#1B1E26;--sunk:#171A21;--ink:#E8EAF0;--muted:#9EA5B5;--line:#2D313C;
+  --plum:#C79BBD;--plum-ink:#1B1E26;--plum-soft:#2D2230;--teal:#52C4C9;--teal-soft:#16302F;
+  --amber:#E6B455;--amber-soft:#33291A;--red:#EE8080;--red-soft:#3A2023;--green:#6BCF97;--green-soft:#173024;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#13151B;--surface:#1B1E26;--sunk:#171A21;--ink:#E8EAF0;--muted:#9EA5B5;--line:#2D313C;
+  --plum:#C79BBD;--plum-ink:#1B1E26;--plum-soft:#2D2230;--teal:#52C4C9;--teal-soft:#16302F;
+  --amber:#E6B455;--amber-soft:#33291A;--red:#EE8080;--red-soft:#3A2023;--green:#6BCF97;--green-soft:#173024;color-scheme:dark}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--fb);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 20px;padding-top:calc(10px + env(safe-area-inset-top,0px));background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;background:none;border:0;cursor:pointer;padding:4px 0}
+.brand b{font:800 19px/1 var(--fd);letter-spacing:-.01em}
+.brand small{color:var(--muted);font-size:13px}
+.mark{width:22px;height:22px;border-radius:50%;border:5px solid var(--plum)}
+.tb{font-size:14px;font-weight:600;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center}
+.tb.primary{background:var(--plum);color:var(--plum-ink);border-color:var(--plum)}
+.tb:hover{background:var(--sunk)}.tb.primary:hover{filter:brightness(1.08);background:var(--plum)}
+
+/* workbook layout */
+.wb{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;max-width:1180px;margin:0 auto;padding:24px 20px 80px}
+.steps{position:sticky;top:78px;align-self:start;display:flex;flex-direction:column;gap:2px}
+.ph{font-size:12px;color:var(--muted);margin:14px 10px 4px;font-weight:600}
+.ph:first-child{margin-top:0}
+.step{display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:10px;padding:8px 10px;border:0;background:none;border-radius:8px;text-align:left;cursor:pointer}
+.step:hover{background:var(--surface)}
+.step.on{background:var(--plum-soft);font-weight:600}
+.step small{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:500}
+.ring{width:24px;height:24px;display:block}
+.rb{fill:none;stroke:var(--line);stroke-width:3}
+.rf{fill:none;stroke:var(--teal);stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset .35s ease}
+.rk{fill:none;stroke:var(--teal);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.ring-num{width:24px;height:24px;border-radius:50%;background:var(--plum);color:var(--plum-ink);font:700 10px/1 var(--fd);display:grid;place-items:center}
+.pane{min-width:0}
+
+.head{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:18px}
+.head h1{font:800 clamp(26px,4vw,38px)/1.05 var(--fd);margin:0 0 10px;letter-spacing:-.02em;overflow-wrap:anywhere}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:var(--muted);font-size:14px}
+.hs{display:flex;align-items:center;gap:12px;margin-top:16px;font-size:13px;color:var(--muted)}
+.bar{flex:1;height:6px;background:var(--sunk);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:var(--teal);transition:width .35s ease}
+.saved{min-width:64px;text-align:right}
+
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:600;background:var(--sunk);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.done,.pill.h-g{background:var(--green-soft);color:var(--green);border-color:transparent}
+.pill.h-y,.pill.warn{background:var(--amber-soft);color:var(--amber);border-color:transparent}
+.pill.h-r{background:var(--red-soft);color:var(--red);border-color:transparent}
+
+.blk{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:16px}
+.blk h2{font:700 20px/1.2 var(--fd);margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 16px;font-size:14px;max-width:70ch}
+.note{background:var(--teal-soft);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:14px;margin:0 0 14px}
+.empty{color:var(--muted);margin:0}
+
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+.grid.one{grid-template-columns:1fr}
+.f{display:flex;flex-direction:column;gap:5px;min-width:0}
+.f.full{grid-column:1/-1}
+.fl{font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+.dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--amber);flex:none;transition:background .2s,border-color .2s}
+.f.ok .dot{background:var(--teal);border-color:var(--teal)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;min-width:0}
+textarea{resize:vertical;min-height:44px;line-height:1.45}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:0;border-color:transparent;background:var(--surface)}
+.hint{color:var(--muted);font-size:12px}
+
+.deck{border-left:4px solid var(--plum);background:var(--plum-soft);border-radius:0 14px 14px 0;padding:14px 18px;margin-bottom:16px}
+.deck-h{font-weight:700;font-size:13px;color:var(--plum);margin-bottom:4px}
+.deck ul{margin:0;padding-left:18px}
+.deck li{margin:4px 0;max-width:72ch}
+.core li{font-weight:600}
+.deck details{margin-top:8px}
+.deck summary{cursor:pointer;font-size:13px;color:var(--plum);font-weight:700}
+.deck details ul{margin-top:6px}
+
+.row{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--sunk)}
+.row input,.row select,.row textarea{background:var(--surface)}
+.chips,.templ,.sugg{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chips{margin-top:12px}
+.chip{font-size:13px;padding:5px 11px;border-radius:99px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
+.chip:hover{border-color:var(--plum)}
+.chip.on{background:var(--plum);color:var(--plum-ink);border-color:var(--plum)}
+.tog{display:inline-flex;align-items:center;gap:7px;font-size:13px;cursor:pointer}
+.tog input{width:16px;height:16px;accent-color:var(--teal);margin:0;flex:none}
+.tog.strong{font-weight:700}
+.rm{font-size:12px;color:var(--muted);background:none;border:0;cursor:pointer;text-decoration:underline;padding:4px;margin-left:auto}
+.rm:hover{color:var(--red)}
+.add{font-weight:600;color:var(--plum);background:none;border:1.5px dashed var(--plum);border-radius:10px;padding:8px 14px;cursor:pointer}
+.add:hover{background:var(--plum-soft)}
+.addrow{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:4px 0 16px}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface);flex:none}
+.seg button{font-size:13px;padding:6px 13px;border:0;background:none;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button:hover{background:var(--sunk)}
+.seg .s-G,.seg .s-done{background:var(--green-soft);color:var(--green);font-weight:700}
+.seg .s-Y,.seg .s-slipped{background:var(--amber-soft);color:var(--amber);font-weight:700}
+.seg .s-R,.seg .s-dropped{background:var(--red-soft);color:var(--red);font-weight:700}
+
+.carry{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.ct small{display:block;color:var(--muted)}
+
+.risk{border:1px solid var(--line);border-left:5px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+.risk.r-G{border-left-color:var(--green)}.risk.r-Y{border-left-color:var(--amber)}.risk.r-R{border-left-color:var(--red)}
+.rh{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+.rh small{display:block;color:var(--muted);font-size:13px;max-width:56ch}
+.risk .grid{margin-top:14px}
+.hsum{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;font-size:14px}
+.mut{color:var(--muted)}
+
+.tbl-wrap{overflow-x:auto;margin-bottom:10px}
+.tbl{width:100%;border-collapse:collapse;min-width:680px}
+.tbl th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:0 6px 6px}
+.tbl td{padding:4px 6px;vertical-align:middle}
+.tbl input,.tbl select{padding:7px 9px}
+.x{font-size:18px;text-decoration:none;line-height:1}
+.tot{font-weight:600;margin:0 0 14px}
+.tot:empty{display:none}
+
+.tests{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);align-items:center}
+.tl{font-size:12px;font-weight:700;color:var(--muted)}
+.ostat{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;font-size:13px}
+.rowfoot{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}
+
+.act{border-left:5px solid var(--line)}
+.act.t-retention{border-left-color:var(--red)}.act.t-adoption{border-left-color:var(--teal)}.act.t-growth{border-left-color:var(--plum)}
+.sugg{background:var(--red-soft);padding:10px 12px;border-radius:10px;margin-bottom:14px}
+.sugg>span,.templ>span{font-size:13px;font-weight:700;margin-right:4px}
+.sugg>span{color:var(--red)}
+.templ{margin-top:6px}
+.templ>span{color:var(--muted)}
+
+.score{display:grid;grid-template-columns:170px 1fr;gap:28px;align-items:center}
+.dial svg{width:170px;height:170px;display:block}
+.dial .rb{stroke-width:11}
+.dial .rf{stroke:var(--plum);stroke-width:11}
+.dn{font:800 40px var(--fd);fill:var(--ink)}
+.dl{font:600 12px var(--fb);fill:var(--muted)}
+.dim{display:grid;grid-template-columns:170px 1fr 48px;gap:12px;align-items:center;font-size:14px;margin:7px 0}
+.dim .bar i{background:var(--plum)}
+.dim b{font-variant-numeric:tabular-nums;text-align:right}
+.gaps{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+.gaps button{width:100%;display:flex;justify-content:space-between;gap:12px;text-align:left;background:var(--amber-soft);border:0;border-radius:8px;padding:9px 12px;cursor:pointer}
+.gaps button:hover{filter:brightness(.97)}
+.gaps small{color:var(--muted);white-space:nowrap}
+.four{padding-left:18px;margin:0}
+.four li{margin:7px 0;max-width:72ch}
+.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.tabs button{font-weight:600;padding:7px 14px;border:1px solid var(--line);background:var(--surface);border-radius:8px;cursor:pointer}
+.tabs .on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.preview{white-space:pre-wrap;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:14px;max-height:380px;overflow:auto;margin:0 0 12px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font-weight:600;padding:9px 16px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--plum);border-color:var(--plum);color:var(--plum-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:none}
+.btn.big{padding:13px 22px;font-size:16px}
+.complete{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.complete p{margin:0;font-weight:600}
+.stepnav{display:flex;justify-content:space-between;gap:12px;margin-top:4px;flex-wrap:wrap}
+
+/* archive */
+.arc{max-width:1100px;margin:0 auto;padding:30px 20px 80px}
+.arc-h{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.arc h1{font:800 clamp(32px,5vw,48px)/1 var(--fd);margin:0 0 8px;letter-spacing:-.025em}
+.arc .sub{margin:0}
+.search{max-width:420px;background:var(--surface)}
+.gh{font:700 19px var(--fd);margin:28px 0 10px;display:flex;gap:8px;align-items:baseline}
+.gh small{font:600 13px var(--fb);color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+.cmain{border:0;background:none;text-align:left;cursor:pointer;padding:16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.cmain:hover{background:var(--sunk)}
+.cmain:focus-visible{outline-offset:-3px}
+.cmain b{font:700 19px/1.2 var(--fd);overflow-wrap:anywhere}
+.cmeta{color:var(--muted);font-size:13px;display:flex;gap:12px;flex-wrap:wrap}
+.cbadges{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.cact{display:flex;border-top:1px solid var(--line)}
+.cact button{flex:1;font-size:13px;padding:9px;border:0;background:none;color:var(--muted);cursor:pointer}
+.cact button+button{border-left:1px solid var(--line)}
+.cact button:hover{color:var(--ink);background:var(--sunk)}
+.cact .del:hover{color:var(--red)}
+.hero-empty{background:var(--surface);border:1.5px dashed var(--line);border-radius:16px;padding:40px 24px;text-align:center;margin-top:12px}
+.hero-empty h2{font:700 22px var(--fd);margin:0 0 6px}
+.hero-empty p{color:var(--muted);margin:0 auto 18px;max-width:52ch}
+.nores{color:var(--muted);margin-top:20px}
+
+/* modal + toast */
+.modal{position:fixed;inset:0;background:rgba(10,12,18,.5);display:grid;place-items:center;z-index:50;padding:20px}
+.modal[hidden]{display:none}
+.mbox{background:var(--surface);border-radius:16px;padding:24px;width:min(470px,100%);box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.mbox h2{font:700 22px var(--fd);margin:0 0 14px}
+.mbox .sub{margin:10px 0 18px}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;max-width:calc(100% - 40px)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#print{display:none}
+
+@media (max-width:820px){
+  .top{position:static}
+  .brand small{display:none}
+  .wb{grid-template-columns:1fr;padding:0 12px 80px;gap:12px}
+  .steps{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;flex-direction:row;overflow-x:auto;background:var(--bg);padding:10px 0;margin:0 -12px;padding-left:12px;padding-right:12px}
+  .ph{display:none}
+  .step{flex:none;grid-template-columns:22px auto;background:var(--surface);border:1px solid var(--line)}
+  .step.on{border-color:var(--plum)}
+  .step small{display:none}
+  .grid{grid-template-columns:1fr}
+  .blk,.head{padding:16px}
+  .score{grid-template-columns:1fr;justify-items:center}
+  .dims{width:100%}
+  .dim{grid-template-columns:130px 1fr 44px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media print{
+  body{background:#fff;color:#000}
+  body>*:not(#print){display:none!important}
+  body::before{display:none}
+  #print{display:block!important;font-family:var(--fb)}
+  #print h1{font:800 22pt var(--fd);margin:0 0 4pt}
+  #print p{margin:0 0 14pt;color:#555}
+  #print pre{white-space:pre-wrap;font:10.5pt/1.5 ui-monospace,Menlo,Consolas,monospace}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="brand" data-act="view-archive" aria-label="Go to your QBR archive"><span class="mark" aria-hidden="true"></span><b>QBR Workbook</b><small>Odoo Customer Success</small></button>
+  <button class="tb" data-act="view-archive">Archive</button>
+  <button class="tb primary" data-act="new">Start a QBR</button>
+  <button class="tb" data-act="export-json">Export backup</button>
+  <label class="tb">Import backup<input type="file" accept="application/json,.json" id="importFile" hidden></label>
+</header>
+<main id="app"></main>
+<div id="modal" class="modal" hidden><div class="mbox" role="dialog" aria-modal="true"></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="print"></div>
+
+<script>
+/* ---------- utilities ---------- */
+const STORE = 'odoo-qbr-workbook-v1';
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const filled = v => String(v ?? '').trim().length > 0;
+function todayISO(){ const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+function fmtDate(iso){ if(!iso) return ''; const [y,m,d] = iso.slice(0,10).split('-').map(Number); if(!y) return ''; return new Date(y, m-1, d||1).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}); }
+const monthKey = iso => iso ? iso.slice(0, 7) : '0000-00';
+function monthLabel(k){ const [y,m] = k.split('-').map(Number); return new Date(y, m-1, 1).toLocaleDateString('en-US', {month:'long', year:'numeric'}); }
+const getP = (o, p) => p.split('.').reduce((a, k) => a == null ? undefined : a[k], o);
+function setP(o, p, v){ const ks = p.split('.'); let a = o; for(let i = 0; i < ks.length - 1; i++){ if(a[ks[i]] == null) a[ks[i]] = {}; a = a[ks[i]]; } a[ks[ks.length-1]] = v; }
+const slug = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'qbr';
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2800); }
+
+/* ---------- reference data ---------- */
+const STEPS = [
+  {id:'prep', phase:'Before the call', title:'Account prep'},
+  {id:'business', phase:'In the room', title:'Business and goals'},
+  {id:'value', phase:'In the room', title:'Value and adoption'},
+  {id:'eco', phase:'In the room', title:'Software ecosystem'},
+  {id:'risks', phase:'In the room', title:'Retention risks'},
+  {id:'growth', phase:'In the room', title:'Growth opportunities'},
+  {id:'actions', phase:'Wrap up', title:'Action plan'},
+  {id:'close', phase:'Wrap up', title:'Close and export'}
+];
+const RISK_CATS = [
+  ['relationship','Relationship','Sponsor strength, dependence on one contact, engagement, departures, trust.'],
+  ['adoption','Adoption and value','Critical workflow adoption, spreadsheets, unmet expectations, unclear ROI.'],
+  ['support','Support and technical','Recurring issues, escalations, integrations, upgrades, technical debt.'],
+  ['commercial','Commercial','Price concerns, user reductions, budget pressure, competitor evaluations.'],
+  ['strategic','Strategic','Acquisition, restructuring, model changes, needs the setup may not support.']
+];
+const ROLES = ['Economic buyer','Sponsor','Champion','Admin','Detractor','Partner'];
+const DEPTS = ['Sales','Marketing','Finance','Operations','Supply chain','Service','HR','Commerce','Reporting','Other'];
+const FITS = ['Odoo can replace','Partial overlap','Keep (specialized)','Needs validation'];
+const AREAS = ['CRM and marketing','Sales execution','Customer support','Accounting and admin','Inventory and manufacturing','Projects and timesheets','HR and workforce','Website, eCommerce, POS','Reporting','Other'];
+const TESTS = [['impact','Business impact'],['urgency','Urgency'],['fit','Functional fit'],['feas','Feasibility'],['strat','Strategic value']];
+const TYPES = ['Retention','Adoption','Growth'];
+const TEMPL = [
+  ['Resolve key pain point','Retention','Customer confirms the outcome'],
+  ['Validate software fit','Growth','Requirements and gaps documented'],
+  ['Improve adoption','Adoption','Target workflow adopted'],
+  ['Mitigate churn risk','Retention','Risk reduced against agreed criteria'],
+  ['Evaluate growth opportunity','Growth','Qualified next step or reason to defer']
+];
+
+/* ---------- data ---------- */
+let db = {qbrs:[], lastBackup:null};
+const state = {view:'archive', id:null, step:'prep', search:'', exportTab:'log'};
+const R = () => ({rating:'', evidence:'', owner:'', checkpoint:''});
+
+function blank(company){
+  const now = new Date().toISOString();
+  return {
+    id:uid(), company:company||'', status:'draft', qbrDate:todayISO(), createdAt:now, updatedAt:now, completedAt:null, priorId:null,
+    snapshot:{industry:'', renewal:'', users:'', hosting:'', version:'', apps:'', partner:'', custom:''},
+    stakeholders:[{name:'', title:'', roles:[], changed:false}],
+    carry:[], hyp:['','',''],
+    business:{priorities:['','',''], changes:'', revenue:'', metrics:'', deep:{current:'', people:'', friction:'', outcome:'', next:''}},
+    value:{result:'', leave:'', unmet:'', notes:''},
+    eco:{rows:[], none:false, notes:''},
+    risks:Object.fromEntries(RISK_CATS.map(c => [c[0], R()])), riskQuotes:'',
+    growth:{rows:[], none:false},
+    actions:[], notes:''
+  };
+}
+function normalize(x){
+  const b = blank(x.company);
+  const xb = x.business || {};
+  return {...b, ...x,
+    snapshot:{...b.snapshot, ...(x.snapshot||{})},
+    stakeholders:Array.isArray(x.stakeholders) ? x.stakeholders.map(s => ({name:'', title:'', roles:[], changed:false, ...s})) : b.stakeholders,
+    carry:Array.isArray(x.carry) ? x.carry : [],
+    hyp:Array.isArray(x.hyp) ? [0,1,2].map(i => x.hyp[i] || '') : b.hyp,
+    business:{...b.business, ...xb, priorities:[0,1,2].map(i => (xb.priorities||[])[i] || ''), deep:{...b.business.deep, ...(xb.deep||{})}},
+    value:{...b.value, ...(x.value||{})},
+    eco:{...b.eco, ...(x.eco||{}), rows:((x.eco||{}).rows)||[]},
+    risks:Object.fromEntries(RISK_CATS.map(([k]) => [k, {...R(), ...((x.risks||{})[k]||{})}])),
+    growth:{...b.growth, ...(x.growth||{}), rows:(((x.growth||{}).rows)||[]).map(r => ({tests:{}, ...r}))},
+    actions:Array.isArray(x.actions) ? x.actions : []
+  };
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(STORE);
+    if(raw){ const p = JSON.parse(raw); if(p && Array.isArray(p.qbrs)){ db = {lastBackup:p.lastBackup||null, qbrs:p.qbrs.map(normalize)}; } }
+  }catch(e){ toast('Browser storage is unavailable here. Export backups to keep your work.'); }
+}
+let saveT;
+function save(){
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    try{ localStorage.setItem(STORE, JSON.stringify(db)); setSaved('Saved'); }
+    catch(e){ setSaved('Not saved'); toast('Couldn\u2019t save to browser storage. Export a backup now.'); }
+  }, 250);
+}
+function setSaved(t){ const s = $('#saved'); if(s) s.textContent = t; }
+function touch(q){ q.updatedAt = new Date().toISOString(); save(); }
+const cur = () => db.qbrs.find(x => x.id === state.id);
+const sameCo = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+function priorFor(company, excludeId){
+  return db.qbrs.filter(q => q.id !== excludeId && sameCo(q.company, company))
+    .sort((a, b) => (b.qbrDate||'').localeCompare(a.qbrDate||'') || (b.updatedAt||'').localeCompare(a.updatedAt||''))[0];
+}
+function createQBR(company){
+  const q = blank(company.trim());
+  const p = priorFor(company);
+  if(p){
+    q.priorId = p.id;
+    q.snapshot = {...p.snapshot};
+    const st = p.stakeholders.filter(s => filled(s.name)).map(s => ({...s, roles:[...s.roles], changed:false}));
+    if(st.length) q.stakeholders = st;
+    q.carry = [
+      ...p.actions.filter(a => filled(a.action)).map(a => ({text:a.action, owner:a.owner||'', due:a.due||'', status:''})),
+      ...p.carry.filter(c => c.status === 'slipped').map(c => ({...c, status:''}))
+    ];
+  }
+  db.qbrs.push(q); save();
+  return q;
+}
+
+/* ---------- scoring ---------- */
+const isQualified = r => !!r.confirmed && filled(r.stakeholder) && filled(r.next);
+function checks(q){
+  const s = q.snapshot, c = {};
+  const roles = q.stakeholders.flatMap(x => filled(x.name) ? x.roles : []);
+  c.prep = [
+    ['Industry', filled(s.industry)], ['Renewal date', filled(s.renewal)], ['Users', filled(s.users)],
+    ['Hosting', filled(s.hosting)], ['Version', filled(s.version)], ['Apps in use', filled(s.apps)],
+    ['Economic buyer identified', roles.includes('Economic buyer')], ['Champion identified', roles.includes('Champion')],
+    ['Three hypotheses', q.hyp.every(filled)]
+  ];
+  if(q.carry.length) c.prep.push(['Previous actions reviewed', q.carry.every(x => x.status)]);
+  const b = q.business;
+  c.business = [['Priority 1', filled(b.priorities[0])], ['Priority 2', filled(b.priorities[1])], ['Priority 3', filled(b.priorities[2])],
+    ['What\u2019s changed', filled(b.changes)], ['How they make money', filled(b.revenue)]];
+  const v = q.value;
+  c.value = [['Strongest result', filled(v.result)], ['Where people leave Odoo', filled(v.leave)], ['Unmet expectation', filled(v.unmet)]];
+  const er = q.eco.rows.filter(r => filled(r.tool));
+  c.eco = [['Ecosystem logged or none reported', q.eco.none || er.length > 0]];
+  if(er.length){ c.eco.push(['Every tool has a fit call', er.every(r => r.fit)]); c.eco.push(['Every tool has a cost estimate', er.every(r => filled(r.cost))]); }
+  c.risks = RISK_CATS.map(([k, n]) => [n + ' rated', !!q.risks[k].rating]);
+  RISK_CATS.forEach(([k, n]) => { const r = q.risks[k]; if(r.rating === 'Y' || r.rating === 'R') c.risks.push([n + ' risk needs evidence, owner, checkpoint', filled(r.evidence) && filled(r.owner) && filled(r.checkpoint)]); });
+  const gr = q.growth.rows.filter(r => filled(r.need));
+  c.growth = [['Opportunities logged or none flagged', q.growth.none || gr.length > 0]];
+  gr.forEach((r, i) => c.growth.push([`Opportunity ${i+1} qualified or deferred`, isQualified(r) || filled(r.defer)]));
+  const ac = q.actions.filter(a => filled(a.action));
+  c.actions = [['At least one action', ac.length > 0]];
+  ac.forEach((a, i) => c.actions.push([`Action ${i+1} needs owner, date, measure`, filled(a.owner) && filled(a.due) && filled(a.measure)]));
+  if(RISK_CATS.some(([k]) => q.risks[k].rating === 'R')) c.actions.push(['Retention action for red risk', ac.some(a => a.type === 'Retention')]);
+  c.close = [];
+  return c;
+}
+const prog = l => { const t = l.length, d = l.filter(x => x[1]).length; return {d, t, p: t ? d/t : 1}; };
+function gaps(q){ const c = checks(q), out = []; STEPS.forEach(s => (c[s.id]||[]).forEach(([l, ok]) => { if(!ok) out.push({step:s.id, label:l}); })); return out; }
+function overall(q){ return prog(Object.values(checks(q)).flat()).p; }
+function quality(q){
+  const c = checks(q), r = l => Math.round(prog(l).p * 20);
+  const prev = c.prep.filter(x => x[0] === 'Previous actions reviewed');
+  const dims = [
+    ['Business understanding', r([...c.prep.filter(x => x[0] !== 'Previous actions reviewed'), ...c.business])],
+    ['Value and adoption', r(c.value)],
+    ['Risk assessment', r(c.risks)],
+    ['Ecosystem and growth', r([...c.eco, ...c.growth])],
+    ['Action plan', r([...c.actions, ...prev])]
+  ];
+  return {dims, total: dims.reduce((a, d) => a + d[1], 0)};
+}
+function health(q){
+  const n = {G:0, Y:0, R:0};
+  RISK_CATS.forEach(([k]) => { const x = q.risks[k].rating; if(x) n[x]++; });
+  const rated = n.G + n.Y + n.R;
+  let label = 'Health unrated', cls = 'un';
+  if(rated){ if(n.R){ label = 'At risk'; cls = 'r'; } else if(n.Y >= 2){ label = 'Watch'; cls = 'y'; } else { label = 'Healthy'; cls = 'g'; } }
+  return {label, cls, n, rated};
+}
+
+/* ---------- small renderers ---------- */
+function ring(p){
+  const C = 2 * Math.PI * 9;
+  return `<svg class="ring" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" class="rb"/><circle cx="12" cy="12" r="9" class="rf" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-p)}" transform="rotate(-90 12 12)"/>${p >= 1 ? '<path d="M8 12.4l2.7 2.7L16.2 9.6" class="rk"/>' : ''}</svg>`;
+}
+function dial(v){
+  const C = 2 * Math.PI * 52;
+  return `<svg viewBox="0 0 120 120" role="img" aria-label="Quality score ${v} out of 100"><circle cx="60" cy="60" r="52" class="rb"/><circle cx="60" cy="60" r="52" class="rf" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-v/100)}" transform="rotate(-90 60 60)"/><text x="60" y="64" text-anchor="middle" class="dn">${v}</text><text x="60" y="84" text-anchor="middle" class="dl">of 100</text></svg>`;
+}
+function F(label, path, o = {}){
+  const val = getP(cur(), path) ?? '';
+  const req = !!o.req, ok = req && filled(val), ra = req ? ' data-req' : '';
+  let ctl;
+  if(o.opts) ctl = `<select data-b="${path}"${ra}><option value="">Select</option>${o.opts.map(x => `<option${x === val ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+  else if(o.rows) ctl = `<textarea rows="${o.rows}" data-b="${path}" placeholder="${esc(o.ph||'')}"${ra}>${esc(val)}</textarea>`;
+  else ctl = `<input type="${o.type||'text'}" data-b="${path}" value="${esc(val)}" placeholder="${esc(o.ph||'')}"${ra}>`;
+  return `<label class="f${o.full ? ' full' : ''}${ok ? ' ok' : ''}"><span class="fl">${req ? '<i class="dot" aria-hidden="true"></i>' : ''}${esc(label)}${req ? '<span class="sr" style="position:absolute;left:-9999px">(required)</span>' : ''}</span>${ctl}${o.hint ? `<small class="hint">${esc(o.hint)}</small>` : ''}</label>`;
+}
+const I = (path, aria, type = 'text', ph = '') => `<input type="${type}" data-b="${path}" value="${esc(getP(cur(), path) ?? '')}" aria-label="${esc(aria)}" placeholder="${esc(ph)}">`;
+const S = (path, opts, aria) => { const v = getP(cur(), path) ?? ''; return `<select data-b="${path}" aria-label="${esc(aria)}"><option value="">Select</option>${opts.map(x => `<option${x === v ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`; };
+function deck(core, more){
+  return `<div class="deck"><div class="deck-h">Ask these first</div><ul class="core">${core.map(x => `<li>${esc(x)}</li>`).join('')}</ul>${more.length ? `<details><summary>More prompts (${more.length})</summary><ul>${more.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}</div>`;
+}
+function ecoTotal(q){
+  const n = q.eco.rows.reduce((s, r) => s + (parseFloat(String(r.cost||'').replace(/[^0-9.]/g, '')) || 0), 0);
+  return n ? `Estimated spend outside Odoo: $${Math.round(n).toLocaleString('en-US')} per year` : '';
+}
+function healthSum(q){ const h = health(q); return `<span class="pill h-${h.cls}">${h.label}</span><span class="mut">${h.rated} of 5 rated</span>`; }
+function oppStatus(r){
+  if(!r) return '';
+  const t = TESTS.filter(([k]) => r.tests && r.tests[k]).length;
+  if(isQualified(r)) return `<span class="pill done">Qualified</span><span class="mut">${t} of 5 tests passed</span>`;
+  if(filled(r.defer)) return `<span class="pill">Deferred</span><span class="mut">${t} of 5 tests passed</span>`;
+  const miss = [!r.confirmed && 'customer confirmation', !filled(r.stakeholder) && 'stakeholder', !filled(r.next) && 'next step'].filter(Boolean);
+  return `<span class="pill warn">Not qualified yet</span><span class="mut">Missing ${miss.join(', ')}. ${t} of 5 tests passed.</span>`;
+}
+
+/* ---------- step renderers ---------- */
+function rPrep(q){
+  const p = q.priorId && db.qbrs.find(x => x.id === q.priorId);
+  return `
+<section class="blk"><h2>Account snapshot</h2><p class="sub">Fill this in before the call, not during it. Amber dots are required; they turn teal when done.</p>
+${p ? `<p class="note">Carried forward from the ${esc(fmtDate(p.qbrDate))} QBR. Update anything that changed.</p>` : ''}
+<div class="grid">
+${F('Company','company')}${F('QBR date','qbrDate',{type:'date'})}
+${F('Industry','snapshot.industry',{req:1, ph:'e.g. Awards and recognition'})}${F('Renewal date','snapshot.renewal',{type:'date', req:1})}
+${F('Users','snapshot.users',{type:'number', req:1})}${F('Hosting','snapshot.hosting',{req:1, opts:['Odoo Online','Odoo.sh','On-premise']})}
+${F('Version','snapshot.version',{req:1, ph:'e.g. 18.0'})}${F('Partner involvement','snapshot.partner',{ph:'Partner name, or none'})}
+${F('Apps in use','snapshot.apps',{req:1, rows:2, full:1, ph:'Sales, Inventory, Accounting...'})}
+${F('Custom modules, integrations, upgrade blockers','snapshot.custom',{rows:2, full:1})}
+</div></section>
+<section class="blk"><h2>Stakeholders</h2><p class="sub">Tag roles. You need an economic buyer and a champion on file.</p>
+${q.stakeholders.map(stakeRow).join('')}
+<button class="add" data-act="add" data-list="stakeholders">Add stakeholder</button></section>
+<section class="blk"><h2>Previous actions</h2><p class="sub">Every open action from last quarter gets a status. Slipped items carry into the next QBR automatically.</p>
+${q.carry.length ? q.carry.map(carryRow).join('') : '<p class="empty">Nothing carried forward. This is the first QBR on file for this company.</p>'}</section>
+<section class="blk"><h2>Hypotheses</h2><p class="sub">What you expect to find. They stay guesses until the customer confirms them.</p>
+<div class="grid one">${F('Likely business challenge','hyp.0',{req:1})}${F('Odoo workflow or capability that might be relevant','hyp.1',{req:1})}${F('Question that would confirm it','hyp.2',{req:1})}</div></section>`;
+}
+function stakeRow(s, i){
+  return `<div class="row"><div class="grid">${F('Name',`stakeholders.${i}.name`)}${F('Title',`stakeholders.${i}.title`)}</div>
+<div class="chips" role="group" aria-label="Roles">${ROLES.map(r => `<button type="button" class="chip${s.roles.includes(r) ? ' on' : ''}" data-act="role" data-i="${i}" data-role="${r}" aria-pressed="${s.roles.includes(r)}">${r}</button>`).join('')}</div>
+<div class="rowfoot"><label class="tog"><input type="checkbox" data-b="stakeholders.${i}.changed"${s.changed ? ' checked' : ''}> New or changed since last QBR</label><button class="rm" data-act="rm" data-list="stakeholders" data-i="${i}">Remove</button></div></div>`;
+}
+function carryRow(c, i){
+  const meta = [c.owner, c.due && ('due ' + fmtDate(c.due))].filter(Boolean).map(esc).join(', ');
+  return `<div class="row carry"><div class="ct"><b>${esc(c.text)}</b>${meta ? `<small>${meta}</small>` : ''}</div><div class="seg" role="group" aria-label="Status">${['done','slipped','dropped'].map(s => `<button class="${c.status === s ? 's-' + s : ''}" data-act="carry" data-i="${i}" data-s="${s}" aria-pressed="${c.status === s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join('')}</div></div>`;
+}
+function rBusiness(){
+  return deck(['What are your top three priorities over the next 12 months?','What has changed in the business since we last spoke?'],
+    ['Can you walk me through how the business operates and serves its customers?','What does a typical order, project, or engagement look like from start to finish?','Where does the business experience the most complexity or friction?','Which processes depend on spreadsheets, manual work, or one specific person?','What are the five metrics leadership reviews most often?','What would break first if demand increased significantly?','Can you walk me through the last time that happened?'])
+  + `<section class="blk"><h2>Priorities</h2><p class="sub">In their words, not ours.</p><div class="grid one">${[0,1,2].map(i => F(`Priority ${i+1}`, `business.priorities.${i}`, {req:1})).join('')}</div></section>
+<section class="blk"><h2>Business context</h2><div class="grid one">
+${F('What\u2019s changed since the last QBR','business.changes',{req:1, rows:2})}
+${F('How they make money','business.revenue',{req:1, ph:'One line: product sales, recurring, projects, services, or a mix'})}
+${F('Metrics leadership watches','business.metrics',{rows:2})}</div></section>
+<section class="blk"><h2>Workflow deep dive</h2><p class="sub">Optional. Use it on the one workflow that matters most this quarter.</p><div class="grid one">
+${F('Current state','business.deep.current',{rows:2})}${F('People and systems','business.deep.people',{rows:2})}
+${F('Friction and impact','business.deep.friction',{rows:2, hint:'How often does it go wrong, and what does it cost?'})}
+${F('Desired outcome','business.deep.outcome',{rows:2, hint:'How would they measure better?'})}${F('Next step','business.deep.next')}</div></section>`;
+}
+function rValue(){
+  return deck(['Which parts of Odoo are working particularly well for your team?','If leadership had to justify the Odoo investment today, what results would they point to?'],
+    ['Where do people still leave Odoo to complete a process?','What information gets entered more than once or kept in multiple places?','Which apps or workflows are underused, and why?','Are any integrations or customizations hard to maintain?','What did you expect Odoo to improve that hasn\u2019t improved yet?','Does the team have the training and ownership to keep improving?'])
+  + `<section class="blk"><h2>Value and adoption</h2><p class="sub">Outcomes, not activity. Push for a number when you can.</p><div class="grid one">
+${F('Strongest result they would point to','value.result',{req:1, rows:2, hint:'e.g. month-end close went from 10 days to 4'})}
+${F('Where people leave Odoo','value.leave',{req:1, rows:2})}
+${F('What they expected to improve but hasn\u2019t','value.unmet',{req:1, rows:2})}
+${F('Adoption notes','value.notes',{rows:3, hint:'Underused apps, training gaps, data quality, ownership'})}</div></section>`;
+}
+function rEco(q){
+  const rows = q.eco.rows;
+  return deck(['What software does each department use outside of Odoo?','What does it do that Odoo doesn\u2019t do well enough today?'],
+    ['What problem does each tool solve, and who depends on it?','What data moves between the systems, and is that automated?','Do people keep separate spreadsheets as a source of truth?','What\u2019s the approximate annual cost, including seats, add-ons, and support?','When does the contract renew, and what would changing it involve?'])
+  + `<section class="blk"><h2>Tools outside Odoo</h2><p class="sub">Fit is a guess until requirements are validated. Don\u2019t promise a replacement in the room.</p>
+${rows.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Tool</th><th>Department</th><th>Annual cost</th><th>Renews</th><th>Fit</th><th><span style="position:absolute;left:-9999px">Remove</span></th></tr></thead><tbody>
+${rows.map((r, i) => `<tr><td>${I(`eco.rows.${i}.tool`,'Tool','text','Tool name')}</td><td>${S(`eco.rows.${i}.dept`, DEPTS, 'Department')}</td><td>${I(`eco.rows.${i}.cost`,'Annual cost','text','$')}</td><td>${I(`eco.rows.${i}.renewal`,'Renewal date','date')}</td><td>${S(`eco.rows.${i}.fit`, FITS, 'Fit')}</td><td><button class="rm x" data-act="rm" data-list="eco.rows" data-i="${i}" aria-label="Remove tool">\u00d7</button></td></tr>`).join('')}
+</tbody></table></div>` : ''}
+<p class="tot" data-live="eco">${ecoTotal(q)}</p>
+<div class="addrow"><button class="add" data-act="add" data-list="eco.rows">Add tool</button><label class="tog"><input type="checkbox" data-b="eco.none"${q.eco.none ? ' checked' : ''}> No outside tools reported</label></div>
+<div class="grid one">${F('Integration and data-flow notes','eco.notes',{rows:2, hint:'What moves between systems, and is it automated?'})}</div></section>`;
+}
+function rRisks(q){
+  return deck(['What is your biggest remaining frustration with Odoo?','Has anyone internally questioned whether Odoo is still the right fit?'],
+    ['Where are we falling short of what you expected?','Have you considered moving any process to another platform? What prompted that?','What would need to improve for you to feel more confident over the next six months?'])
+  + `<section class="blk"><h2>Retention risks</h2><p class="sub">Rate all five. Anything yellow or red needs evidence, an owner, and a checkpoint date. \u201cCustomer unhappy\u201d is not evidence.</p>
+<div class="hsum" data-live="health">${healthSum(q)}</div>
+${RISK_CATS.map(([k, n, d]) => riskCard(q, k, n, d)).join('')}
+<div class="grid one" style="margin-top:14px">${F('Customer quotes worth keeping','riskQuotes',{rows:2})}</div></section>`;
+}
+function riskCard(q, k, n, d){
+  const r = q.risks[k], open = r.rating === 'Y' || r.rating === 'R';
+  return `<div class="risk r-${r.rating||'none'}"><div class="rh"><div><b>${n}</b><small>${d}</small></div>
+<div class="seg" role="group" aria-label="${n} rating">${[['G','Green'],['Y','Yellow'],['R','Red']].map(([v, l]) => `<button class="${r.rating === v ? 's-' + v : ''}" data-act="rate" data-k="${k}" data-v="${v}" aria-pressed="${r.rating === v}">${l}</button>`).join('')}</div></div>
+${open ? `<div class="grid">${F('Evidence', `risks.${k}.evidence`, {req:1, rows:2, full:1, hint:'The root issue and what it means for the renewal'})}${F('Owner', `risks.${k}.owner`, {req:1})}${F('Next checkpoint', `risks.${k}.checkpoint`, {req:1, type:'date'})}</div>` : ''}</div>`;
+}
+function rGrowth(q){
+  return deck(['Are you planning to grow revenue, improve margins, add locations, hire, or enter new markets?','If you could eliminate one manual process this year, which would it be?'],
+    ['What\u2019s keeping you from those goals today?','Which processes will get harder as the business grows?','Which projects are funded, and who would evaluate a solution?'])
+  + `<section class="blk"><h2>Growth opportunities</h2><p class="sub">An unpurchased app is not an opportunity. Qualified means the customer confirmed the need, there\u2019s a stakeholder, and you agreed a next step.</p>
+${q.growth.rows.map(oppCard).join('')}
+<div class="addrow"><button class="add" data-act="add" data-list="growth.rows">Add opportunity</button><label class="tog"><input type="checkbox" data-b="growth.none"${q.growth.none ? ' checked' : ''}> None identified this quarter</label></div></section>`;
+}
+function oppCard(r, i){
+  const p = `growth.rows.${i}`;
+  return `<div class="row"><div class="grid">${F('Customer need', p + '.need', {full:1, ph:'The problem, in their words'})}${F('Odoo area', p + '.area', {opts:AREAS})}${F('Stakeholder', p + '.stakeholder')}
+${F('Agreed next step', p + '.next', {full:1})}${F('Reason to defer', p + '.defer', {full:1, hint:'Use this instead of a next step when the timing isn\u2019t right'})}</div>
+<div class="tests"><span class="tl">Five tests</span>${TESTS.map(([k, l]) => `<label class="tog"><input type="checkbox" data-b="${p}.tests.${k}"${r.tests && r.tests[k] ? ' checked' : ''}> ${l}</label>`).join('')}</div>
+<div class="rowfoot"><label class="tog strong"><input type="checkbox" data-b="${p}.confirmed"${r.confirmed ? ' checked' : ''}> Customer confirmed the need</label><button class="rm" data-act="rm" data-list="growth.rows" data-i="${i}">Remove</button></div>
+<div class="ostat" data-live="opp:${i}">${oppStatus(r)}</div></div>`;
+}
+function rActions(q){
+  const sugg = RISK_CATS.filter(([k]) => { const r = q.risks[k]; return (r.rating === 'R' || r.rating === 'Y') && !q.actions.some(a => a.risk === k); });
+  return `<section class="blk"><h2>Action plan</h2><p class="sub">Every action needs an owner, a date, and a way to know it worked. Retention actions stay out of the customer recap unless you tick the box.</p>
+${sugg.length ? `<div class="sugg"><span>From your risk ratings</span>${sugg.map(([k, n]) => `<button class="chip" data-act="riskact" data-k="${k}">Add action: ${n.toLowerCase()} risk</button>`).join('')}</div>` : ''}
+${q.actions.map(actRow).join('')}
+<div class="templ"><span>Quick add</span>${TEMPL.map((t, i) => `<button class="chip" data-act="templ" data-i="${i}">${t[0]}</button>`).join('')}<button class="chip" data-act="add" data-list="actions">Blank action</button></div></section>`;
+}
+function actRow(a, i){
+  const p = `actions.${i}`;
+  return `<div class="row act t-${(a.type||'').toLowerCase()}"><div class="grid">${F('Action', p + '.action', {full:1})}${F('Type', p + '.type', {opts:TYPES})}${F('Owner', p + '.owner')}${F('Due', p + '.due', {type:'date'})}${F('Success measure', p + '.measure')}</div>
+<div class="rowfoot"><label class="tog"><input type="checkbox" data-b="${p}.share"${a.share ? ' checked' : ''}> Include in customer recap</label><button class="rm" data-act="rm" data-list="actions" data-i="${i}">Remove</button></div></div>`;
+}
+function rClose(q){
+  const qs = quality(q), g = gaps(q);
+  return `<section class="blk score"><div class="dial">${dial(qs.total)}</div><div class="dims"><h2>QBR quality score</h2><p class="sub">Only you see this. It\u2019s for self-coaching and never appears in an export.</p>
+${qs.dims.map(([n, v]) => `<div class="dim"><span>${n}</span><div class="bar"><i style="width:${v*5}%"></i></div><b>${v}/20</b></div>`).join('')}</div></section>
+<section class="blk"><h2>${g.length ? `${g.length} gap${g.length > 1 ? 's' : ''} to close` : 'No gaps. Every required field is captured.'}</h2>
+${g.length ? `<p class="sub">You can still complete this QBR. The gap count stays on its archive card until you close them.</p><ul class="gaps">${g.map(x => `<li><button data-act="step" data-step="${x.step}"><span>${esc(x.label)}</span><small>${STEPS.find(s => s.id === x.step).title}</small></button></li>`).join('')}</ul>` : ''}</section>
+<section class="blk"><h2>Four questions before you log it</h2><ul class="four">
+<li><b>Do I understand the business?</b> Can I explain how they operate, make money, and define success?</li>
+<li><b>Is the customer getting value?</b> Can I point to outcomes, gaps, and what needs to improve?</li>
+<li><b>What could put retention at risk?</b> Do I know the risks, evidence, owner, and mitigation plan?</li>
+<li><b>What happens next?</b> Are there customer-aligned priorities with measurable actions?</li></ul></section>
+<section class="blk"><h2>Internal notes</h2><div class="grid one">${F('Anything else for the log','notes',{rows:3})}</div></section>
+<section class="blk"><h2>Export</h2>
+<div class="tabs" role="tablist">${[['log','Odoo log note'],['recap','Customer recap']].map(([k, l]) => `<button role="tab" aria-selected="${state.exportTab === k}" class="${state.exportTab === k ? 'on' : ''}" data-act="etab" data-k="${k}">${l}</button>`).join('')}</div>
+<p class="sub">${state.exportTab === 'log' ? 'Paste into the customer\u2019s chatter in Odoo. Includes risk ratings and internal owners.' : 'Safe to send. Leaves out risk ratings, hypotheses, internal notes, and any action not marked for the recap. It uses your notes as written, so give it a read first.'}</p>
+<pre class="preview" id="preview">${esc(exportText(q, state.exportTab))}</pre>
+<div class="btns"><button class="btn" data-act="copy">Copy text</button><button class="btn" data-act="txt">Download .txt</button><button class="btn" data-act="pdf">Save as PDF</button></div></section>
+<section class="blk complete">${q.status === 'complete' ? `<p>Completed ${esc(fmtDate(q.completedAt))}. Filed under ${monthLabel(monthKey(q.completedAt))}.</p><button class="btn ghost" data-act="reopen">Reopen for edits</button>` : `<span class="mut">Completing files this QBR under ${monthLabel(monthKey(todayISO()))} in your archive.</span><button class="btn primary big" data-act="complete">Complete QBR</button>`}</section>`;
+}
+const STEP_R = {prep:rPrep, business:rBusiness, value:rValue, eco:rEco, risks:rRisks, growth:rGrowth, actions:rActions, close:rClose};
+
+/* ---------- exports ---------- */
+const exportText = (q, kind) => kind === 'recap' ? recapText(q) : logText(q);
+const RATING = {G:'GREEN', Y:'YELLOW', R:'RED'};
+function logText(q){
+  const out = [], s = q.snapshot, h = health(q);
+  const blockOut = (title, lines) => { const l = lines.filter(x => x !== null && x !== undefined && x !== ''); if(l.length){ out.push('', title, ...l); } };
+  const L = (label, v) => filled(v) ? `${label}: ${String(v).trim()}` : null;
+  out.push(`QBR LOG: ${q.company} (${fmtDate(q.qbrDate)})`);
+  out.push(`Status: ${q.status === 'complete' ? 'Complete' : 'In progress'}. Account health: ${h.label}${h.rated ? ` (${h.n.G} green, ${h.n.Y} yellow, ${h.n.R} red)` : ''}.`);
+  blockOut('ACCOUNT', [L('Industry', s.industry), L('Renewal', fmtDate(s.renewal)), L('Users', s.users), L('Hosting', [s.hosting, s.version].filter(Boolean).join(', ')), L('Apps', s.apps), L('Partner', s.partner), L('Custom and integrations', s.custom)]);
+  blockOut('STAKEHOLDERS', q.stakeholders.filter(x => filled(x.name)).map(x => `- ${x.name}${filled(x.title) ? ', ' + x.title : ''}${x.roles.length ? ` [${x.roles.join(', ')}]` : ''}${x.changed ? ' (new or changed)' : ''}`));
+  blockOut('PREVIOUS ACTIONS', q.carry.map(c => `- ${c.text}: ${c.status || 'not reviewed'}`));
+  blockOut('HYPOTHESES', q.hyp.filter(filled).map(x => `- ${x}`));
+  const b = q.business, d = b.deep;
+  blockOut('BUSINESS AND GOALS', [
+    b.priorities.some(filled) ? 'Priorities:\n' + b.priorities.filter(filled).map((p, i) => `  ${i+1}. ${p}`).join('\n') : null,
+    L('What changed', b.changes), L('Revenue model', b.revenue), L('Leadership metrics', b.metrics),
+    L('Deep dive, current state', d.current), L('Deep dive, people and systems', d.people), L('Deep dive, friction and impact', d.friction), L('Deep dive, desired outcome', d.outcome), L('Deep dive, next step', d.next)]);
+  const v = q.value;
+  blockOut('VALUE AND ADOPTION', [L('Strongest result', v.result), L('Where people leave Odoo', v.leave), L('Unmet expectation', v.unmet), L('Adoption notes', v.notes)]);
+  const er = q.eco.rows.filter(r => filled(r.tool));
+  blockOut('SOFTWARE ECOSYSTEM', [
+    ...er.map(r => `- ${r.tool}${r.dept ? ` (${r.dept})` : ''}${filled(r.cost) ? ` | ${r.cost}/yr` : ''}${r.renewal ? ` | renews ${fmtDate(r.renewal)}` : ''}${r.fit ? ` | ${r.fit}` : ''}`),
+    ecoTotal(q), q.eco.none && !er.length ? 'No outside tools reported.' : null, L('Notes', q.eco.notes)]);
+  blockOut('RETENTION RISKS', [...RISK_CATS.map(([k, n]) => {
+    const r = q.risks[k]; let t = `- ${n}: ${RATING[r.rating] || 'NOT RATED'}`;
+    if(r.rating === 'Y' || r.rating === 'R'){ if(filled(r.evidence)) t += `\n    Evidence: ${r.evidence}`; if(filled(r.owner)) t += `\n    Owner: ${r.owner}`; if(r.checkpoint) t += `\n    Next checkpoint: ${fmtDate(r.checkpoint)}`; }
+    return t; }), L('Customer quotes', q.riskQuotes)]);
+  const gr = q.growth.rows.filter(r => filled(r.need));
+  blockOut('GROWTH OPPORTUNITIES', [
+    ...gr.map(r => { const t = TESTS.filter(([k]) => r.tests && r.tests[k]).length; const st = isQualified(r) ? 'Qualified' : filled(r.defer) ? 'Deferred' : 'Not qualified';
+      return `- ${r.need}${r.area ? ` [${r.area}]` : ''}: ${st}, ${t}/5 tests${filled(r.stakeholder) ? `. Stakeholder: ${r.stakeholder}` : ''}${filled(r.next) ? `. Next: ${r.next}` : ''}${filled(r.defer) ? `. Deferred because: ${r.defer}` : ''}`; }),
+    q.growth.none && !gr.length ? 'None identified this quarter.' : null]);
+  blockOut('ACTION PLAN', q.actions.filter(a => filled(a.action)).map(a => `- ${a.type ? `[${a.type}] ` : ''}${a.action}${filled(a.owner) ? `. Owner: ${a.owner}` : ''}${a.due ? `. Due: ${fmtDate(a.due)}` : ''}${filled(a.measure) ? `. Measure: ${a.measure}` : ''}`));
+  blockOut('NOTES', [filled(q.notes) ? q.notes.trim() : null]);
+  return out.join('\n');
+}
+function recapText(q){
+  const out = [`${q.company} QBR recap, ${fmtDate(q.qbrDate)}`, '', 'Thank you for the time today. Here\u2019s a summary of what we covered and what happens next.'];
+  const sec = (title, lines) => { const l = lines.filter(filled); if(l.length) out.push('', title, ...l); };
+  sec('Your priorities for the next 12 months', q.business.priorities.filter(filled).map((p, i) => `${i+1}. ${p.trim()}`));
+  sec('What\u2019s working', [q.value.result.trim()]);
+  sec('Where we\u2019ll focus', [q.value.leave, q.value.unmet].filter(filled).map(x => `- ${x.trim()}`));
+  sec('Opportunities we agreed to explore', q.growth.rows.filter(r => filled(r.need) && isQualified(r)).map(r => `- ${r.need.trim()}${r.area ? ` (${r.area})` : ''}. Next step: ${r.next.trim()}`));
+  sec('Next steps', q.actions.filter(a => filled(a.action) && a.share).map(a => `- ${a.action.trim()}${filled(a.owner) ? `. Owner: ${a.owner.trim()}` : ''}${a.due ? `. Target date: ${fmtDate(a.due)}` : ''}`));
+  out.push('', 'If I missed anything or got something wrong, let me know and I\u2019ll update it.');
+  return out.join('\n');
+}
+function download(name, text, type){
+  const blob = new Blob([text], {type}); const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); toast('Copied to clipboard'); }
+  catch(e){
+    const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); toast('Copied to clipboard'); }catch(_){ toast('Copy failed. Select the preview text and copy it manually.'); }
+    ta.remove();
+  }
+}
+
+/* ---------- views ---------- */
+function stepsHTML(q){
+  const c = checks(q); let ph = '', h = '';
+  STEPS.forEach(s => {
+    if(s.phase !== ph){ ph = s.phase; h += `<div class="ph">${ph}</div>`; }
+    const p = prog(c[s.id]), isClose = s.id === 'close';
+    h += `<button class="step${state.step === s.id ? ' on' : ''}" data-act="step" data-step="${s.id}"${state.step === s.id ? ' aria-current="step"' : ''}>${isClose ? `<span class="ring-num" aria-hidden="true">${quality(q).total}</span>` : ring(p.p)}<span>${s.title}</span><small>${isClose ? gaps(q).length + ' gaps' : p.d + '/' + p.t}</small></button>`;
+  });
+  return h;
+}
+function headHTML(q){
+  const h = health(q), pct = Math.round(overall(q) * 100);
+  return `<h1>${esc(q.company) || 'Untitled QBR'}</h1><div class="meta"><span>${esc(fmtDate(q.qbrDate))}</span><span class="pill${q.status === 'complete' ? ' done' : ''}">${q.status === 'complete' ? 'Complete' : 'In progress'}</span><span class="pill h-${h.cls}">${h.label}</span></div>
+<div class="hs"><div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Required fields captured"><i style="width:${pct}%"></i></div><span>${pct}% captured</span><span id="saved" class="saved"></span></div>`;
+}
+function navHTML(){
+  const i = STEPS.findIndex(s => s.id === state.step), p = STEPS[i-1], n = STEPS[i+1];
+  return `<div class="stepnav">${p ? `<button class="btn ghost" data-act="step" data-step="${p.id}">Back to ${p.title.toLowerCase()}</button>` : '<span></span>'}${n ? `<button class="btn primary" data-act="step" data-step="${n.id}">Continue to ${n.title.toLowerCase()}</button>` : ''}</div>`;
+}
+function renderWork(){
+  const q = cur(); if(!q){ state.view = 'archive'; return render(); }
+  const y = window.scrollY;
+  app.innerHTML = `<div class="wb"><nav class="steps" id="steps" aria-label="QBR steps">${stepsHTML(q)}</nav><div class="pane"><div class="head" id="head">${headHTML(q)}</div><div id="body">${STEP_R[state.step](q)}</div>${navHTML()}</div></div>`;
+  window.scrollTo(0, y);
+  const on = document.querySelector('.step.on'); if(on && window.innerWidth <= 820) on.scrollIntoView({inline:'center', block:'nearest'});
+}
+function refreshLive(q){
+  const st = $('#steps'); if(st){ const sl = st.scrollLeft; st.innerHTML = stepsHTML(q); st.scrollLeft = sl; }
+  const hd = $('#head'); if(hd) hd.innerHTML = headHTML(q);
+  document.querySelectorAll('[data-live]').forEach(el => {
+    const [k, i] = el.dataset.live.split(':');
+    if(k === 'opp') el.innerHTML = oppStatus(q.growth.rows[+i]);
+    else if(k === 'health') el.innerHTML = healthSum(q);
+    else if(k === 'eco') el.textContent = ecoTotal(q);
+  });
+  const pv = $('#preview'); if(pv) pv.textContent = exportText(q, state.exportTab);
+}
+function renderArchive(){
+  const cos = new Set(db.qbrs.map(q => q.company.trim().toLowerCase())).size;
+  let bk = 'No backup yet. Use Export backup in the top bar.';
+  if(db.lastBackup){ const days = Math.floor((new Date(todayISO()) - new Date(db.lastBackup)) / 864e5); bk = `Last backup ${fmtDate(db.lastBackup)}${days > 30 ? ', over a month ago. Export a fresh one.' : '.'}`; }
+  app.innerHTML = `<div class="arc"><div class="arc-h"><div><h1>Your QBRs</h1><p class="sub">${db.qbrs.length} on file across ${cos} compan${cos === 1 ? 'y' : 'ies'}, saved in this browser. ${bk}</p></div><button class="btn primary" data-act="new">Start a QBR</button></div>
+${db.qbrs.length ? `<input class="search" type="search" id="search" placeholder="Search by company" aria-label="Search by company" value="${esc(state.search)}">` : ''}
+<div id="results"></div></div>`;
+  renderResults();
+}
+function renderResults(){
+  const box = $('#results'); if(!box) return;
+  if(!db.qbrs.length){
+    box.innerHTML = `<div class="hero-empty"><h2>No QBRs yet</h2><p>Start one before your next customer call. When you complete it, it lands here under the month you finished it.</p><button class="btn primary" data-act="new">Start a QBR</button></div>`;
+    return;
+  }
+  const s = state.search.trim().toLowerCase();
+  const list = db.qbrs.filter(q => !s || q.company.toLowerCase().includes(s));
+  const drafts = list.filter(q => q.status !== 'complete').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const groups = {};
+  list.filter(q => q.status === 'complete').forEach(q => { const k = monthKey(q.completedAt); (groups[k] = groups[k] || []).push(q); });
+  const keys = Object.keys(groups).sort().reverse();
+  box.innerHTML = (!list.length ? `<p class="nores">No QBRs match \u201c${esc(state.search)}\u201d.</p>` : '')
+    + (drafts.length ? `<h2 class="gh">In progress <small>${drafts.length}</small></h2><div class="cards">${drafts.map(card).join('')}</div>` : '')
+    + keys.map(k => `<h2 class="gh">${monthLabel(k)} <small>${groups[k].length}</small></h2><div class="cards">${groups[k].sort((a, b) => a.company.localeCompare(b.company)).map(card).join('')}</div>`).join('');
+}
+function card(q){
+  const h = health(q), qs = quality(q), g = gaps(q).length, hist = db.qbrs.filter(x => sameCo(x.company, q.company)).length;
+  return `<article class="card"><button class="cmain" data-act="open" data-id="${q.id}"><b>${esc(q.company) || 'Untitled QBR'}</b><span class="cmeta"><span>${esc(fmtDate(q.qbrDate))}</span>${hist > 1 ? `<span>${hist} QBRs on file</span>` : ''}</span>
+<span class="cbadges"><span class="pill h-${h.cls}">${h.label}</span><span class="pill">Score ${qs.total}</span>${g ? `<span class="pill warn">${g} gap${g > 1 ? 's' : ''}</span>` : '<span class="pill done">No gaps</span>'}</span></button>
+<div class="cact">${q.status === 'complete' ? `<button data-act="next" data-id="${q.id}">Start next QBR</button>` : `<button data-act="open" data-id="${q.id}">Continue</button>`}<button class="del" data-act="del" data-id="${q.id}">Delete</button></div></article>`;
+}
+function render(){ if(state.view === 'work') renderWork(); else renderArchive(); }
+
+/* ---------- modal ---------- */
+function modal(html){ const m = $('#modal'); m.querySelector('.mbox').innerHTML = html; m.hidden = false; }
+function closeModal(){ $('#modal').hidden = true; }
+function openNew(){
+  const cos = [...new Set(db.qbrs.map(q => q.company))].sort();
+  modal(`<h2>Start a QBR</h2><label class="f full"><span class="fl">Company</span><input id="newCo" list="coList" placeholder="Company name" autocomplete="off"></label>
+<datalist id="coList">${cos.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+<p class="sub" id="newHint">The company name links this QBR to its history.</p>
+<div class="btns" style="justify-content:flex-end"><button class="btn ghost" data-act="close-modal">Cancel</button><button class="btn primary" data-act="create">Start QBR</button></div>`);
+  setTimeout(() => $('#newCo').focus(), 30);
+}
+function updNewHint(v){
+  const h = $('#newHint'); if(!h) return;
+  const p = filled(v) && priorFor(v);
+  h.textContent = p ? `Found a QBR from ${fmtDate(p.qbrDate)}. Its snapshot, stakeholders, and actions will carry forward.` : 'The company name links this QBR to its history.';
+}
+function openQBR(q){ state.id = q.id; state.view = 'work'; state.step = q.status === 'complete' ? 'close' : 'prep'; render(); window.scrollTo(0, 0); }
+function doComplete(){
+  const q = cur(); q.status = 'complete'; q.completedAt = todayISO(); touch(q); closeModal(); renderWork();
+  toast(`QBR completed and filed under ${monthLabel(monthKey(q.completedAt))}`);
+}
+
+/* ---------- events ---------- */
+function onField(e){
+  const el = e.target;
+  if(el.id === 'search'){ state.search = el.value; renderResults(); return; }
+  if(el.id === 'newCo'){ updNewHint(el.value); return; }
+  if(!el.dataset || !el.dataset.b) return;
+  const q = cur(); if(!q) return;
+  const val = el.type === 'checkbox' ? el.checked : el.value;
+  setP(q, el.dataset.b, val);
+  if(/^actions\.\d+\.type$/.test(el.dataset.b)){ const row = el.closest('.act'); if(row) row.className = 'row act t-' + String(val).toLowerCase(); }
+  if(el.hasAttribute('data-req')){ const f = el.closest('.f'); if(f) f.classList.toggle('ok', filled(val)); }
+  touch(q); refreshLive(q);
+}
+document.addEventListener('input', onField);
+document.addEventListener('change', e => { if(e.target.type === 'checkbox' || e.target.tagName === 'SELECT') onField(e); });
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if(!b){ if(e.target.id === 'modal') closeModal(); return; }
+  const act = b.dataset.act, q = cur(), i = +b.dataset.i;
+  const rerender = () => { touch(q); renderWork(); };
+  switch(act){
+    case 'view-archive': state.view = 'archive'; render(); window.scrollTo(0, 0); break;
+    case 'new': openNew(); break;
+    case 'close-modal': closeModal(); break;
+    case 'create': {
+      const co = ($('#newCo').value || '').trim();
+      if(!co){ toast('Add a company name to start.'); $('#newCo').focus(); return; }
+      closeModal(); openQBR(createQBR(co)); break;
+    }
+    case 'open': openQBR(db.qbrs.find(x => x.id === b.dataset.id)); break;
+    case 'next': { const src = db.qbrs.find(x => x.id === b.dataset.id); openQBR(createQBR(src.company)); toast('Snapshot, stakeholders, and actions carried forward'); break; }
+    case 'del': {
+      const x = db.qbrs.find(y => y.id === b.dataset.id);
+      if(confirm(`Delete the ${x.company || 'untitled'} QBR from ${fmtDate(x.qbrDate)}? This can\u2019t be undone.`)){
+        db.qbrs = db.qbrs.filter(y => y.id !== x.id); save(); renderArchive(); toast('QBR deleted');
+      }
+      break;
+    }
+    case 'step': state.step = b.dataset.step; renderWork(); window.scrollTo(0, 0); break;
+    case 'add': {
+      const path = b.dataset.list, arr = getP(q, path);
+      const fresh = {
+        'stakeholders': () => ({name:'', title:'', roles:[], changed:false}),
+        'eco.rows': () => ({tool:'', dept:'', cost:'', renewal:'', fit:''}),
+        'growth.rows': () => ({need:'', area:'', stakeholder:'', next:'', defer:'', tests:{}, confirmed:false}),
+        'actions': () => ({action:'', type:'', owner:'', due:'', measure:'', share:true})
+      }[path]();
+      arr.push(fresh);
+      if(path === 'eco.rows') q.eco.none = false;
+      if(path === 'growth.rows') q.growth.none = false;
+      rerender();
+      const target = document.querySelector(`[data-b^="${path}.${arr.length - 1}."]`); if(target) target.focus();
+      break;
+    }
+    case 'rm': getP(q, b.dataset.list).splice(i, 1); rerender(); break;
+    case 'role': { const r = q.stakeholders[i].roles, role = b.dataset.role, k = r.indexOf(role); k < 0 ? r.push(role) : r.splice(k, 1); rerender(); break; }
+    case 'carry': { const c = q.carry[i]; c.status = c.status === b.dataset.s ? '' : b.dataset.s; rerender(); break; }
+    case 'rate': { const r = q.risks[b.dataset.k]; r.rating = r.rating === b.dataset.v ? '' : b.dataset.v; rerender(); break; }
+    case 'riskact': {
+      const k = b.dataset.k, r = q.risks[k], n = RISK_CATS.find(c => c[0] === k)[1];
+      q.actions.push({action:`Mitigate ${n.toLowerCase()} risk: `, type:'Retention', owner:r.owner||'', due:r.checkpoint||'', measure:'Risk reduced against agreed criteria', share:false, risk:k});
+      rerender(); break;
+    }
+    case 'templ': { const t = TEMPL[i]; q.actions.push({action:t[0], type:t[1], owner:'', due:'', measure:t[2], share:t[1] !== 'Retention'}); rerender(); break; }
+    case 'etab': state.exportTab = b.dataset.k; renderWork(); break;
+    case 'copy': copyText(exportText(q, state.exportTab)); break;
+    case 'txt': download(`${slug(q.company)}-qbr-${state.exportTab}-${q.qbrDate}.txt`, exportText(q, state.exportTab), 'text/plain'); toast('Downloaded'); break;
+    case 'pdf': {
+      $('#print').innerHTML = `<h1>${esc(q.company)} ${state.exportTab === 'log' ? 'QBR log' : 'QBR recap'}</h1><p>${esc(fmtDate(q.qbrDate))}</p><pre>${esc(exportText(q, state.exportTab))}</pre>`;
+      window.print(); break;
+    }
+    case 'complete': {
+      const g = gaps(q).length;
+      if(g) modal(`<h2>Complete with ${g} gap${g > 1 ? 's' : ''}?</h2><p class="sub">You can close them later. The archive card shows the gap count until you do.</p><div class="btns" style="justify-content:flex-end"><button class="btn ghost" data-act="close-modal">Keep working</button><button class="btn primary" data-act="do-complete">Complete QBR</button></div>`);
+      else doComplete();
+      break;
+    }
+    case 'do-complete': doComplete(); break;
+    case 'reopen': q.status = 'draft'; q.completedAt = null; rerender(); toast('Reopened. Complete it again when you\u2019re done.'); break;
+    case 'export-json': {
+      if(!db.qbrs.length){ toast('Nothing to back up yet.'); return; }
+      download(`qbr-workbook-backup-${todayISO()}.json`, JSON.stringify({app:'qbr-workbook', version:1, exportedAt:new Date().toISOString(), qbrs:db.qbrs}, null, 2), 'application/json');
+      db.lastBackup = todayISO(); save(); if(state.view === 'archive') renderArchive(); toast('Backup downloaded');
+      break;
+    }
+  }
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && !$('#modal').hidden) closeModal();
+  if(e.key === 'Enter' && e.target.id === 'newCo'){ e.preventDefault(); document.querySelector('[data-act="create"]').click(); }
+});
+$('#importFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try{
+      const data = JSON.parse(rd.result), list = Array.isArray(data) ? data : data.qbrs;
+      if(!Array.isArray(list)) throw new Error('bad');
+      let added = 0, upd = 0;
+      list.forEach(x => {
+        if(!x || !x.id || typeof x.company !== 'string') return;
+        const k = db.qbrs.findIndex(y => y.id === x.id);
+        if(k < 0){ db.qbrs.push(normalize(x)); added++; }
+        else if((x.updatedAt||'') > (db.qbrs[k].updatedAt||'')){ db.qbrs[k] = normalize(x); upd++; }
+      });
+      save(); render(); toast(`Imported ${added} new, ${upd} updated`);
+    }catch(_){ toast('That file isn\u2019t a QBR Workbook backup.'); }
+    e.target.value = '';
+  };
+  rd.readAsText(f);
+});
+
+load(); render();
+</script>
+</body>
+</html>

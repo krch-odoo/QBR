@@ -221,6 +221,22 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-of
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #print{display:none}
 
+
+.seg .on-seg{background:var(--plum-soft);color:var(--plum);font-weight:700}
+.f .seg{align-self:flex-start;flex-wrap:wrap}
+.hrow{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.rename{font-size:13px;color:var(--muted);background:none;border:0;cursor:pointer;text-decoration:underline;padding:2px}
+.rename:hover{color:var(--ink)}
+.hdate{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.hdate input{width:auto;padding:4px 8px}
+.metalive{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+details.more{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+details.more>summary{cursor:pointer;font-weight:700;font-size:14px;color:var(--plum)}
+details.more[open]>summary{margin-bottom:10px}
+details.more .sub{margin-bottom:12px}
+.blk.pin{border:2px solid var(--amber)}
+.ver{text-align:center;color:var(--muted);font-size:12px;padding:0 20px calc(28px + env(safe-area-inset-bottom,0px))}
+
 @media (max-width:820px){
   .top{position:static}
   .brand small{display:none}
@@ -263,7 +279,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-of
 
 <script>
 /* ---------- utilities ---------- */
-const STORE = 'odoo-qbr-workbook-v1';
+const STORE = 'odoo-qbr-workbook-v1';   /* never change: reps' archives are saved under this key */
+const APP_VERSION = '1.1';
 const $ = s => document.querySelector(s);
 const app = $('#app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -277,7 +294,7 @@ const getP = (o, p) => p.split('.').reduce((a, k) => a == null ? undefined : a[k
 function setP(o, p, v){ const ks = p.split('.'); let a = o; for(let i = 0; i < ks.length - 1; i++){ if(a[ks[i]] == null) a[ks[i]] = {}; a = a[ks[i]]; } a[ks[ks.length-1]] = v; }
 const slug = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'qbr';
 let toastT;
-function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2800); }
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3000); }
 
 /* ---------- reference data ---------- */
 const STEPS = [
@@ -288,7 +305,7 @@ const STEPS = [
   {id:'risks', phase:'In the room', title:'Retention risks'},
   {id:'growth', phase:'In the room', title:'Growth opportunities'},
   {id:'actions', phase:'Wrap up', title:'Action plan'},
-  {id:'close', phase:'Wrap up', title:'Close and export'}
+  {id:'close', phase:'Wrap up', title:'Close and log'}
 ];
 const RISK_CATS = [
   ['relationship','Relationship','Sponsor strength, dependence on one contact, engagement, departures, trust.'],
@@ -297,6 +314,11 @@ const RISK_CATS = [
   ['commercial','Commercial','Price concerns, user reductions, budget pressure, competitor evaluations.'],
   ['strategic','Strategic','Acquisition, restructuring, model changes, needs the setup may not support.']
 ];
+const STATUSES = ['Live','In implementation','Unknown'];
+const METHODS = ['Success Pack','Self-implemented','Partner'];
+const PHASES = ['Discovery','Configuration','Data migration','Training and testing','Go-live prep'];
+const TRACK = ['On track','At risk','Slipped'];
+const TRACK_CLS = {'On track':'s-G','At risk':'s-Y','Slipped':'s-R'};
 const ROLES = ['Economic buyer','Sponsor','Champion','Admin','Detractor','Partner'];
 const DEPTS = ['Sales','Marketing','Finance','Operations','Supply chain','Service','HR','Commerce','Reporting','Other'];
 const FITS = ['Odoo can replace','Partial overlap','Keep (specialized)','Needs validation'];
@@ -313,14 +335,15 @@ const TEMPL = [
 
 /* ---------- data ---------- */
 let db = {qbrs:[], lastBackup:null};
-const state = {view:'archive', id:null, step:'prep', search:'', exportTab:'log'};
+const state = {view:'archive', id:null, step:'prep', search:''};
 const R = () => ({rating:'', evidence:'', owner:'', checkpoint:''});
 
 function blank(company){
   const now = new Date().toISOString();
   return {
     id:uid(), company:company||'', status:'draft', qbrDate:todayISO(), createdAt:now, updatedAt:now, completedAt:null, priorId:null,
-    snapshot:{industry:'', renewal:'', users:'', hosting:'', version:'', apps:'', partner:'', custom:''},
+    snapshot:{implStatus:'', implMethod:'', confirmedOnCall:false, partner:'', goLive:'', industry:'', renewal:'', users:'', hosting:'', version:'', apps:'', custom:''},
+    impl:{phase:'', target:'', track:'', blocker:'', hours:'', live:''},
     stakeholders:[{name:'', title:'', roles:[], changed:false}],
     carry:[], hyp:['','',''],
     business:{priorities:['','',''], changes:'', revenue:'', metrics:'', deep:{current:'', people:'', friction:'', outcome:'', next:''}},
@@ -328,7 +351,7 @@ function blank(company){
     eco:{rows:[], none:false, notes:''},
     risks:Object.fromEntries(RISK_CATS.map(c => [c[0], R()])), riskQuotes:'',
     growth:{rows:[], none:false},
-    actions:[], notes:''
+    actions:[], notes:'', frozen:null
   };
 }
 function normalize(x){
@@ -336,6 +359,7 @@ function normalize(x){
   const xb = x.business || {};
   return {...b, ...x,
     snapshot:{...b.snapshot, ...(x.snapshot||{})},
+    impl:{...b.impl, ...(x.impl||{})},
     stakeholders:Array.isArray(x.stakeholders) ? x.stakeholders.map(s => ({name:'', title:'', roles:[], changed:false, ...s})) : b.stakeholders,
     carry:Array.isArray(x.carry) ? x.carry : [],
     hyp:Array.isArray(x.hyp) ? [0,1,2].map(i => x.hyp[i] || '') : b.hyp,
@@ -343,8 +367,13 @@ function normalize(x){
     value:{...b.value, ...(x.value||{})},
     eco:{...b.eco, ...(x.eco||{}), rows:((x.eco||{}).rows)||[]},
     risks:Object.fromEntries(RISK_CATS.map(([k]) => [k, {...R(), ...((x.risks||{})[k]||{})}])),
-    growth:{...b.growth, ...(x.growth||{}), rows:(((x.growth||{}).rows)||[]).map(r => ({tests:{}, ...r}))},
-    actions:Array.isArray(x.actions) ? x.actions : []
+    growth:{...b.growth, ...(x.growth||{}), rows:(((x.growth||{}).rows)||[]).map(r => {
+      const o = {tests:{}, deferred:false, ...r};
+      if(filled(o.defer) && !filled(o.next)){ o.next = o.defer; o.deferred = true; }   /* v1.0 kept defer reasons separately */
+      delete o.defer; return o;
+    })},
+    actions:Array.isArray(x.actions) ? x.actions : [],
+    frozen:x.frozen || null
   };
 }
 function load(){
@@ -365,6 +394,8 @@ function setSaved(t){ const s = $('#saved'); if(s) s.textContent = t; }
 function touch(q){ q.updatedAt = new Date().toISOString(); save(); }
 const cur = () => db.qbrs.find(x => x.id === state.id);
 const sameCo = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const inImpl = q => q.snapshot.implStatus === 'In implementation';
+const stepTitle = (s, q) => s.id === 'value' && q && inImpl(q) ? 'Implementation progress' : s.title;
 
 function priorFor(company, excludeId){
   return db.qbrs.filter(q => q.id !== excludeId && sameCo(q.company, company))
@@ -375,7 +406,8 @@ function createQBR(company){
   const p = priorFor(company);
   if(p){
     q.priorId = p.id;
-    q.snapshot = {...p.snapshot};
+    q.snapshot = {...p.snapshot, confirmedOnCall:false};
+    q.impl.target = (p.impl||{}).target || '';
     const st = p.stakeholders.filter(s => filled(s.name)).map(s => ({...s, roles:[...s.roles], changed:false}));
     if(st.length) q.stakeholders = st;
     q.carry = [
@@ -388,30 +420,43 @@ function createQBR(company){
 }
 
 /* ---------- scoring ---------- */
-const isQualified = r => !!r.confirmed && filled(r.stakeholder) && filled(r.next);
+const isQualified = r => !r.deferred && !!r.confirmed && filled(r.stakeholder) && filled(r.next);
+const isDeferred = r => !!r.deferred && filled(r.next);
 function checks(q){
-  const s = q.snapshot, c = {};
+  const s = q.snapshot, st = s.implStatus, c = {};
   const roles = q.stakeholders.flatMap(x => filled(x.name) ? x.roles : []);
-  c.prep = [
+  c.prep = [['Implementation status', filled(st)]];
+  if(st === 'Live' || st === 'In implementation'){
+    c.prep.push(['Implementation method', filled(s.implMethod)]);
+    if(s.implMethod === 'Partner') c.prep.push(['Partner name', filled(s.partner)]);
+  }
+  c.prep.push(
     ['Industry', filled(s.industry)], ['Renewal date', filled(s.renewal)], ['Users', filled(s.users)],
     ['Hosting', filled(s.hosting)], ['Version', filled(s.version)], ['Apps in use', filled(s.apps)],
     ['Economic buyer identified', roles.includes('Economic buyer')], ['Champion identified', roles.includes('Champion')],
-    ['Three hypotheses', q.hyp.every(filled)]
-  ];
+    ['Hypothesis', filled(q.hyp[0])]
+  );
   if(q.carry.length) c.prep.push(['Previous actions reviewed', q.carry.every(x => x.status)]);
   const b = q.business;
-  c.business = [['Priority 1', filled(b.priorities[0])], ['Priority 2', filled(b.priorities[1])], ['Priority 3', filled(b.priorities[2])],
-    ['What\u2019s changed', filled(b.changes)], ['How they make money', filled(b.revenue)]];
-  const v = q.value;
-  c.value = [['Strongest result', filled(v.result)], ['Where people leave Odoo', filled(v.leave)], ['Unmet expectation', filled(v.unmet)]];
+  c.business = [];
+  if(st === 'Unknown') c.business.push(['Confirm implementation status', false]);
+  c.business.push(['Priority 1', filled(b.priorities[0])], ['Priority 2', filled(b.priorities[1])], ['Priority 3', filled(b.priorities[2])],
+    ['What\u2019s changed', filled(b.changes)], ['How they make money', filled(b.revenue)]);
+  if(inImpl(q)){
+    const im = q.impl;
+    c.value = [['Current phase', filled(im.phase)], ['Target go-live', filled(im.target)], ['On-track status', filled(im.track)], ['Biggest blocker', filled(im.blocker)]];
+  } else {
+    const v = q.value;
+    c.value = [['Strongest result', filled(v.result)], ['Where people leave Odoo', filled(v.leave)], ['Unmet expectation', filled(v.unmet)]];
+  }
   const er = q.eco.rows.filter(r => filled(r.tool));
   c.eco = [['Ecosystem logged or none reported', q.eco.none || er.length > 0]];
-  if(er.length){ c.eco.push(['Every tool has a fit call', er.every(r => r.fit)]); c.eco.push(['Every tool has a cost estimate', er.every(r => filled(r.cost))]); }
+  if(er.length) c.eco.push(['Every tool has a fit call', er.every(r => r.fit)]);
   c.risks = RISK_CATS.map(([k, n]) => [n + ' rated', !!q.risks[k].rating]);
   RISK_CATS.forEach(([k, n]) => { const r = q.risks[k]; if(r.rating === 'Y' || r.rating === 'R') c.risks.push([n + ' risk needs evidence, owner, checkpoint', filled(r.evidence) && filled(r.owner) && filled(r.checkpoint)]); });
   const gr = q.growth.rows.filter(r => filled(r.need));
-  c.growth = [['Opportunities logged or none flagged', q.growth.none || gr.length > 0]];
-  gr.forEach((r, i) => c.growth.push([`Opportunity ${i+1} qualified or deferred`, isQualified(r) || filled(r.defer)]));
+  c.growth = inImpl(q) ? [] : [['Opportunities logged or none flagged', q.growth.none || gr.length > 0]];
+  gr.forEach((r, i) => c.growth.push([`Opportunity ${i+1} qualified or deferred`, isQualified(r) || isDeferred(r)]));
   const ac = q.actions.filter(a => filled(a.action));
   c.actions = [['At least one action', ac.length > 0]];
   ac.forEach((a, i) => c.actions.push([`Action ${i+1} needs owner, date, measure`, filled(a.owner) && filled(a.due) && filled(a.measure)]));
@@ -427,12 +472,17 @@ function quality(q){
   const prev = c.prep.filter(x => x[0] === 'Previous actions reviewed');
   const dims = [
     ['Business understanding', r([...c.prep.filter(x => x[0] !== 'Previous actions reviewed'), ...c.business])],
-    ['Value and adoption', r(c.value)],
+    [inImpl(q) ? 'Implementation progress' : 'Value and adoption', r(c.value)],
     ['Risk assessment', r(c.risks)],
     ['Ecosystem and growth', r([...c.eco, ...c.growth])],
     ['Action plan', r([...c.actions, ...prev])]
   ];
   return {dims, total: dims.reduce((a, d) => a + d[1], 0)};
+}
+/* completed QBRs keep the score and gaps they had when completed, so later rule changes don't re-grade them */
+function scoreOf(q){
+  if(q.status === 'complete' && q.frozen) return q.frozen;
+  const qs = quality(q); return {total:qs.total, dims:qs.dims, gaps:gaps(q)};
 }
 function health(q){
   const n = {G:0, Y:0, R:0};
@@ -441,6 +491,11 @@ function health(q){
   let label = 'Health unrated', cls = 'un';
   if(rated){ if(n.R){ label = 'At risk'; cls = 'r'; } else if(n.Y >= 2){ label = 'Watch'; cls = 'y'; } else { label = 'Healthy'; cls = 'g'; } }
   return {label, cls, n, rated};
+}
+function implLine(q){
+  const s = q.snapshot; if(!s.implStatus) return '';
+  if(s.implStatus === 'Unknown') return 'Implementation status unknown';
+  return s.implStatus + (s.implMethod ? `, ${s.implMethod}${s.implMethod === 'Partner' && filled(s.partner) ? ` (${s.partner.trim()})` : ''}` : '');
 }
 
 /* ---------- small renderers ---------- */
@@ -452,6 +507,7 @@ function dial(v){
   const C = 2 * Math.PI * 52;
   return `<svg viewBox="0 0 120 120" role="img" aria-label="Quality score ${v} out of 100"><circle cx="60" cy="60" r="52" class="rb"/><circle cx="60" cy="60" r="52" class="rf" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-v/100)}" transform="rotate(-90 60 60)"/><text x="60" y="64" text-anchor="middle" class="dn">${v}</text><text x="60" y="84" text-anchor="middle" class="dl">of 100</text></svg>`;
 }
+const SR = t => `<span style="position:absolute;left:-9999px">${t}</span>`;
 function F(label, path, o = {}){
   const val = getP(cur(), path) ?? '';
   const req = !!o.req, ok = req && filled(val), ra = req ? ' data-req' : '';
@@ -459,7 +515,13 @@ function F(label, path, o = {}){
   if(o.opts) ctl = `<select data-b="${path}"${ra}><option value="">Select</option>${o.opts.map(x => `<option${x === val ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
   else if(o.rows) ctl = `<textarea rows="${o.rows}" data-b="${path}" placeholder="${esc(o.ph||'')}"${ra}>${esc(val)}</textarea>`;
   else ctl = `<input type="${o.type||'text'}" data-b="${path}" value="${esc(val)}" placeholder="${esc(o.ph||'')}"${ra}>`;
-  return `<label class="f${o.full ? ' full' : ''}${ok ? ' ok' : ''}"><span class="fl">${req ? '<i class="dot" aria-hidden="true"></i>' : ''}${esc(label)}${req ? '<span class="sr" style="position:absolute;left:-9999px">(required)</span>' : ''}</span>${ctl}${o.hint ? `<small class="hint">${esc(o.hint)}</small>` : ''}</label>`;
+  return `<label class="f${o.full ? ' full' : ''}${ok ? ' ok' : ''}"><span class="fl">${req ? '<i class="dot" aria-hidden="true"></i>' : ''}${esc(label)}${req ? SR('(required)') : ''}</span>${ctl}${o.hint ? `<small class="hint">${esc(o.hint)}</small>` : ''}</label>`;
+}
+/* single-choice button group; clicking writes the value and re-renders */
+function SEG(label, path, opts, o = {}){
+  const val = getP(cur(), path) ?? '';
+  const req = !!o.req, ok = req && filled(val);
+  return `<div class="f${o.full ? ' full' : ''}${ok ? ' ok' : ''}"><span class="fl">${req ? '<i class="dot" aria-hidden="true"></i>' : ''}${esc(label)}${req ? SR('(required)') : ''}</span><div class="seg" role="group" aria-label="${esc(label)}">${opts.map(x => `<button type="button" class="${val === x ? ((o.cls && o.cls[x]) || 'on-seg') : ''}" data-act="setv" data-path="${path}" data-v="${esc(x)}" aria-pressed="${val === x}">${esc(x)}</button>`).join('')}</div></div>`;
 }
 const I = (path, aria, type = 'text', ph = '') => `<input type="${type}" data-b="${path}" value="${esc(getP(cur(), path) ?? '')}" aria-label="${esc(aria)}" placeholder="${esc(ph)}">`;
 const S = (path, opts, aria) => { const v = getP(cur(), path) ?? ''; return `<select data-b="${path}" aria-label="${esc(aria)}"><option value="">Select</option>${opts.map(x => `<option${x === v ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`; };
@@ -474,33 +536,37 @@ function healthSum(q){ const h = health(q); return `<span class="pill h-${h.cls}
 function oppStatus(r){
   if(!r) return '';
   const t = TESTS.filter(([k]) => r.tests && r.tests[k]).length;
+  if(r.deferred) return filled(r.next) ? `<span class="pill">Deferred</span>` : `<span class="pill warn">Add a reason to defer</span>`;
   if(isQualified(r)) return `<span class="pill done">Qualified</span><span class="mut">${t} of 5 tests passed</span>`;
-  if(filled(r.defer)) return `<span class="pill">Deferred</span><span class="mut">${t} of 5 tests passed</span>`;
   const miss = [!r.confirmed && 'customer confirmation', !filled(r.stakeholder) && 'stakeholder', !filled(r.next) && 'next step'].filter(Boolean);
   return `<span class="pill warn">Not qualified yet</span><span class="mut">Missing ${miss.join(', ')}. ${t} of 5 tests passed.</span>`;
 }
+const anyFilled = (...v) => v.some(filled);
 
 /* ---------- step renderers ---------- */
 function rPrep(q){
-  const p = q.priorId && db.qbrs.find(x => x.id === q.priorId);
+  const p = q.priorId && db.qbrs.find(x => x.id === q.priorId), s = q.snapshot;
+  const known = s.implStatus === 'Live' || s.implStatus === 'In implementation';
   return `
-<section class="blk"><h2>Account snapshot</h2><p class="sub">Fill this in before the call, not during it. Amber dots are required; they turn teal when done.</p>
+<section class="blk"><h2>Implementation</h2><p class="sub">This shapes the rest of the workbook. Pick Unknown if the account history doesn\u2019t make it clear, and confirm it on the call.</p>
 ${p ? `<p class="note">Carried forward from the ${esc(fmtDate(p.qbrDate))} QBR. Update anything that changed.</p>` : ''}
+<div class="grid">${SEG('Status', 'snapshot.implStatus', STATUSES, {req:1, full:1})}
+${known ? SEG('Method', 'snapshot.implMethod', METHODS, {req:1, full:1}) : ''}
+${known && s.implMethod === 'Partner' ? F('Partner name', 'snapshot.partner', {req:1}) : ''}
+${s.implStatus === 'Live' ? F('Go-live date', 'snapshot.goLive', {type:'date'}) : ''}</div></section>
+<section class="blk"><h2>Account snapshot</h2><p class="sub">Fill this in before the call, not during it. Amber dots are required; they turn teal when done.</p>
 <div class="grid">
-${F('Company','company')}${F('QBR date','qbrDate',{type:'date'})}
 ${F('Industry','snapshot.industry',{req:1, ph:'e.g. Awards and recognition'})}${F('Renewal date','snapshot.renewal',{type:'date', req:1})}
 ${F('Users','snapshot.users',{type:'number', req:1})}${F('Hosting','snapshot.hosting',{req:1, opts:['Odoo Online','Odoo.sh','On-premise']})}
-${F('Version','snapshot.version',{req:1, ph:'e.g. 18.0'})}${F('Partner involvement','snapshot.partner',{ph:'Partner name, or none'})}
-${F('Apps in use','snapshot.apps',{req:1, rows:2, full:1, ph:'Sales, Inventory, Accounting...'})}
-${F('Custom modules, integrations, upgrade blockers','snapshot.custom',{rows:2, full:1})}
-</div></section>
+${F('Version','snapshot.version',{req:1, ph:'e.g. 18.0'})}${F('Apps in use','snapshot.apps',{req:1, ph:'Sales, Inventory, Accounting...'})}
+</div>
+<details class="more"${filled(s.custom) ? ' open' : ''}><summary>More detail</summary><div class="grid one">${F('Custom modules, integrations, upgrade blockers','snapshot.custom',{rows:2})}</div></details></section>
 <section class="blk"><h2>Stakeholders</h2><p class="sub">Tag roles. You need an economic buyer and a champion on file.</p>
 ${q.stakeholders.map(stakeRow).join('')}
 <button class="add" data-act="add" data-list="stakeholders">Add stakeholder</button></section>
-<section class="blk"><h2>Previous actions</h2><p class="sub">Every open action from last quarter gets a status. Slipped items carry into the next QBR automatically.</p>
-${q.carry.length ? q.carry.map(carryRow).join('') : '<p class="empty">Nothing carried forward. This is the first QBR on file for this company.</p>'}</section>
-<section class="blk"><h2>Hypotheses</h2><p class="sub">What you expect to find. They stay guesses until the customer confirms them.</p>
-<div class="grid one">${F('Likely business challenge','hyp.0',{req:1})}${F('Odoo workflow or capability that might be relevant','hyp.1',{req:1})}${F('Question that would confirm it','hyp.2',{req:1})}</div></section>`;
+${q.carry.length ? `<section class="blk"><h2>Previous actions</h2><p class="sub">Every open action from last quarter gets a status. Slipped items carry into the next QBR automatically.</p>${q.carry.map(carryRow).join('')}</section>` : ''}
+<section class="blk"><h2>Hypothesis</h2><p class="sub">What you expect to find. It stays a guess until the customer confirms it.</p>
+<div class="grid one">${F('What I expect to find','hyp.0',{req:1, rows:2, hint:'A likely challenge and the Odoo workflow that might help'})}${F('Question that would confirm it','hyp.1')}</div></section>`;
 }
 function stakeRow(s, i){
   return `<div class="row"><div class="grid">${F('Name',`stakeholders.${i}.name`)}${F('Title',`stakeholders.${i}.title`)}</div>
@@ -511,20 +577,27 @@ function carryRow(c, i){
   const meta = [c.owner, c.due && ('due ' + fmtDate(c.due))].filter(Boolean).map(esc).join(', ');
   return `<div class="row carry"><div class="ct"><b>${esc(c.text)}</b>${meta ? `<small>${meta}</small>` : ''}</div><div class="seg" role="group" aria-label="Status">${['done','slipped','dropped'].map(s => `<button class="${c.status === s ? 's-' + s : ''}" data-act="carry" data-i="${i}" data-s="${s}" aria-pressed="${c.status === s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join('')}</div></div>`;
 }
-function rBusiness(){
-  return deck(['What are your top three priorities over the next 12 months?','What has changed in the business since we last spoke?'],
-    ['Can you walk me through how the business operates and serves its customers?','What does a typical order, project, or engagement look like from start to finish?','Where does the business experience the most complexity or friction?','Which processes depend on spreadsheets, manual work, or one specific person?','What are the five metrics leadership reviews most often?','What would break first if demand increased significantly?','Can you walk me through the last time that happened?'])
+function rBusiness(q){
+  const unk = q.snapshot.implStatus === 'Unknown', pin = unk || q.snapshot.confirmedOnCall, b = q.business, d = b.deep;
+  const core = unk
+    ? ['Where are you with your Odoo implementation today, and who is leading it?','What are your top three priorities over the next 12 months?']
+    : ['What are your top three priorities over the next 12 months?','What has changed in the business since we last spoke?'];
+  const more = [...(unk ? ['What has changed in the business since we last spoke?'] : []),
+    'Can you walk me through how the business operates and serves its customers?','What does a typical order, project, or engagement look like from start to finish?','Where does the business experience the most complexity or friction?','Which processes depend on spreadsheets, manual work, or one specific person?','What are the five metrics leadership reviews most often?','What would break first if demand increased significantly?','Can you walk me through the last time that happened?'];
+  return deck(core, more)
+  + (pin ? `<section class="blk${unk ? ' pin' : ''}"><h2>${unk ? 'Confirm implementation status' : 'Implementation status, confirmed on the call'}</h2><p class="sub">${unk ? 'You marked this unknown in prep. Settle it first; the workbook adjusts to match.' : 'Fix it here if you picked the wrong one.'}</p><div class="grid">${SEG('Status', 'snapshot.implStatus', ['Live','In implementation'], {full:1})}${SEG('Method', 'snapshot.implMethod', METHODS, {full:1})}${q.snapshot.implMethod === 'Partner' ? F('Partner name', 'snapshot.partner') : ''}</div></section>` : '')
   + `<section class="blk"><h2>Priorities</h2><p class="sub">In their words, not ours.</p><div class="grid one">${[0,1,2].map(i => F(`Priority ${i+1}`, `business.priorities.${i}`, {req:1})).join('')}</div></section>
 <section class="blk"><h2>Business context</h2><div class="grid one">
 ${F('What\u2019s changed since the last QBR','business.changes',{req:1, rows:2})}
-${F('How they make money','business.revenue',{req:1, ph:'One line: product sales, recurring, projects, services, or a mix'})}
-${F('Metrics leadership watches','business.metrics',{rows:2})}</div></section>
-<section class="blk"><h2>Workflow deep dive</h2><p class="sub">Optional. Use it on the one workflow that matters most this quarter.</p><div class="grid one">
+${F('How they make money','business.revenue',{req:1, ph:'One line: product sales, recurring, projects, services, or a mix'})}</div>
+<details class="more"${anyFilled(b.metrics, d.current, d.people, d.friction, d.outcome, d.next) ? ' open' : ''}><summary>Workflow deep dive and leadership metrics</summary><p class="sub">Optional. Use it on the one workflow that matters most this quarter.</p><div class="grid one">
+${F('Metrics leadership watches','business.metrics',{rows:2})}
 ${F('Current state','business.deep.current',{rows:2})}${F('People and systems','business.deep.people',{rows:2})}
 ${F('Friction and impact','business.deep.friction',{rows:2, hint:'How often does it go wrong, and what does it cost?'})}
-${F('Desired outcome','business.deep.outcome',{rows:2, hint:'How would they measure better?'})}${F('Next step','business.deep.next')}</div></section>`;
+${F('Desired outcome','business.deep.outcome',{rows:2, hint:'How would they measure better?'})}${F('Next step','business.deep.next')}</div></details></section>`;
 }
-function rValue(){
+function rValue(q){
+  if(inImpl(q)) return rImpl(q);
   return deck(['Which parts of Odoo are working particularly well for your team?','If leadership had to justify the Odoo investment today, what results would they point to?'],
     ['Where do people still leave Odoo to complete a process?','What information gets entered more than once or kept in multiple places?','Which apps or workflows are underused, and why?','Are any integrations or customizations hard to maintain?','What did you expect Odoo to improve that hasn\u2019t improved yet?','Does the team have the training and ownership to keep improving?'])
   + `<section class="blk"><h2>Value and adoption</h2><p class="sub">Outcomes, not activity. Push for a number when you can.</p><div class="grid one">
@@ -533,13 +606,23 @@ ${F('Where people leave Odoo','value.leave',{req:1, rows:2})}
 ${F('What they expected to improve but hasn\u2019t','value.unmet',{req:1, rows:2})}
 ${F('Adoption notes','value.notes',{rows:3, hint:'Underused apps, training gaps, data quality, ownership'})}</div></section>`;
 }
+function rImpl(q){
+  return deck(['Where are you in the implementation today, and what\u2019s next?','What\u2019s most likely to delay go-live?'],
+    ['What\u2019s already live and being used day to day?','Who on your side owns decisions and testing?','Is the team getting enough time from the implementation team?','What would make go-live feel like a success?'])
+  + `<section class="blk"><h2>Implementation progress</h2><p class="sub">They\u2019re not live yet, so the goal is getting them there. Growth is optional on this QBR.</p><div class="grid">
+${F('Current phase','impl.phase',{req:1, opts:PHASES})}${F('Target go-live','impl.target',{req:1, type:'date'})}
+${SEG('On-track status','impl.track',TRACK,{req:1, full:1, cls:TRACK_CLS})}
+${F('Biggest blocker','impl.blocker',{req:1, rows:2, full:1})}
+${q.snapshot.implMethod === 'Success Pack' ? F('Success Pack hours remaining','impl.hours',{type:'number'}) : ''}
+${F('Already live and in use','impl.live',{rows:2, full:1})}</div></section>`;
+}
 function rEco(q){
   const rows = q.eco.rows;
   return deck(['What software does each department use outside of Odoo?','What does it do that Odoo doesn\u2019t do well enough today?'],
     ['What problem does each tool solve, and who depends on it?','What data moves between the systems, and is that automated?','Do people keep separate spreadsheets as a source of truth?','What\u2019s the approximate annual cost, including seats, add-ons, and support?','When does the contract renew, and what would changing it involve?'])
   + `<section class="blk"><h2>Tools outside Odoo</h2><p class="sub">Fit is a guess until requirements are validated. Don\u2019t promise a replacement in the room.</p>
-${rows.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Tool</th><th>Department</th><th>Annual cost</th><th>Renews</th><th>Fit</th><th><span style="position:absolute;left:-9999px">Remove</span></th></tr></thead><tbody>
-${rows.map((r, i) => `<tr><td>${I(`eco.rows.${i}.tool`,'Tool','text','Tool name')}</td><td>${S(`eco.rows.${i}.dept`, DEPTS, 'Department')}</td><td>${I(`eco.rows.${i}.cost`,'Annual cost','text','$')}</td><td>${I(`eco.rows.${i}.renewal`,'Renewal date','date')}</td><td>${S(`eco.rows.${i}.fit`, FITS, 'Fit')}</td><td><button class="rm x" data-act="rm" data-list="eco.rows" data-i="${i}" aria-label="Remove tool">\u00d7</button></td></tr>`).join('')}
+${rows.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Tool</th><th>Department</th><th>Annual cost</th><th>Renews</th><th>Fit</th><th>${SR('Remove')}</th></tr></thead><tbody>
+${rows.map((r, i) => `<tr><td>${I(`eco.rows.${i}.tool`,'Tool','text','Tool name')}</td><td>${S(`eco.rows.${i}.dept`, DEPTS, 'Department')}</td><td>${I(`eco.rows.${i}.cost`,'Annual cost','text','If known')}</td><td>${I(`eco.rows.${i}.renewal`,'Renewal date','date')}</td><td>${S(`eco.rows.${i}.fit`, FITS, 'Fit')}</td><td><button class="rm x" data-act="rm" data-list="eco.rows" data-i="${i}" aria-label="Remove tool">\u00d7</button></td></tr>`).join('')}
 </tbody></table></div>` : ''}
 <p class="tot" data-live="eco">${ecoTotal(q)}</p>
 <div class="addrow"><button class="add" data-act="add" data-list="eco.rows">Add tool</button><label class="tog"><input type="checkbox" data-b="eco.none"${q.eco.none ? ' checked' : ''}> No outside tools reported</label></div>
@@ -548,10 +631,9 @@ ${rows.map((r, i) => `<tr><td>${I(`eco.rows.${i}.tool`,'Tool','text','Tool name'
 function rRisks(q){
   return deck(['What is your biggest remaining frustration with Odoo?','Has anyone internally questioned whether Odoo is still the right fit?'],
     ['Where are we falling short of what you expected?','Have you considered moving any process to another platform? What prompted that?','What would need to improve for you to feel more confident over the next six months?'])
-  + `<section class="blk"><h2>Retention risks</h2><p class="sub">Rate all five. Anything yellow or red needs evidence, an owner, and a checkpoint date. \u201cCustomer unhappy\u201d is not evidence.</p>
+  + `<section class="blk"><h2>Retention risks</h2><p class="sub">Rate all five. Anything yellow or red needs evidence, an owner, and a checkpoint date. \u201cCustomer unhappy\u201d is not evidence; a direct quote often is.</p>
 <div class="hsum" data-live="health">${healthSum(q)}</div>
-${RISK_CATS.map(([k, n, d]) => riskCard(q, k, n, d)).join('')}
-<div class="grid one" style="margin-top:14px">${F('Customer quotes worth keeping','riskQuotes',{rows:2})}</div></section>`;
+${RISK_CATS.map(([k, n, d]) => riskCard(q, k, n, d)).join('')}</section>`;
 }
 function riskCard(q, k, n, d){
   const r = q.risks[k], open = r.rating === 'Y' || r.rating === 'R';
@@ -560,23 +642,25 @@ function riskCard(q, k, n, d){
 ${open ? `<div class="grid">${F('Evidence', `risks.${k}.evidence`, {req:1, rows:2, full:1, hint:'The root issue and what it means for the renewal'})}${F('Owner', `risks.${k}.owner`, {req:1})}${F('Next checkpoint', `risks.${k}.checkpoint`, {req:1, type:'date'})}</div>` : ''}</div>`;
 }
 function rGrowth(q){
+  const imp = inImpl(q);
   return deck(['Are you planning to grow revenue, improve margins, add locations, hire, or enter new markets?','If you could eliminate one manual process this year, which would it be?'],
     ['What\u2019s keeping you from those goals today?','Which processes will get harder as the business grows?','Which projects are funded, and who would evaluate a solution?'])
-  + `<section class="blk"><h2>Growth opportunities</h2><p class="sub">An unpurchased app is not an opportunity. Qualified means the customer confirmed the need, there\u2019s a stakeholder, and you agreed a next step.</p>
+  + `<section class="blk"><h2>Growth opportunities</h2><p class="sub">${imp ? 'Optional while they\u2019re mid-implementation. Log one if it comes up, but don\u2019t pitch before they\u2019re live.' : 'An unpurchased app is not an opportunity. Qualified means the customer confirmed the need, there\u2019s a stakeholder, and you agreed a next step.'}</p>
 ${q.growth.rows.map(oppCard).join('')}
-<div class="addrow"><button class="add" data-act="add" data-list="growth.rows">Add opportunity</button><label class="tog"><input type="checkbox" data-b="growth.none"${q.growth.none ? ' checked' : ''}> None identified this quarter</label></div></section>`;
+<div class="addrow"><button class="add" data-act="add" data-list="growth.rows">Add opportunity</button>${imp ? '' : `<label class="tog"><input type="checkbox" data-b="growth.none"${q.growth.none ? ' checked' : ''}> None identified this quarter</label>`}</div></section>`;
 }
 function oppCard(r, i){
   const p = `growth.rows.${i}`;
-  return `<div class="row"><div class="grid">${F('Customer need', p + '.need', {full:1, ph:'The problem, in their words'})}${F('Odoo area', p + '.area', {opts:AREAS})}${F('Stakeholder', p + '.stakeholder')}
-${F('Agreed next step', p + '.next', {full:1})}${F('Reason to defer', p + '.defer', {full:1, hint:'Use this instead of a next step when the timing isn\u2019t right'})}</div>
+  return `<div class="row"><div class="grid">${F('Customer need', p + '.need', {full:1, ph:'The problem, in their words'})}${F('Odoo area', p + '.area', {opts:AREAS})}${F('Stakeholder', p + '.stakeholder')}</div>
 <div class="tests"><span class="tl">Five tests</span>${TESTS.map(([k, l]) => `<label class="tog"><input type="checkbox" data-b="${p}.tests.${k}"${r.tests && r.tests[k] ? ' checked' : ''}> ${l}</label>`).join('')}</div>
-<div class="rowfoot"><label class="tog strong"><input type="checkbox" data-b="${p}.confirmed"${r.confirmed ? ' checked' : ''}> Customer confirmed the need</label><button class="rm" data-act="rm" data-list="growth.rows" data-i="${i}">Remove</button></div>
+<div class="rowfoot"><div class="seg" role="group" aria-label="Qualify or defer"><button class="${r.deferred ? '' : 'on-seg'}" data-act="oppmode" data-i="${i}" data-v="0" aria-pressed="${!r.deferred}">Qualify</button><button class="${r.deferred ? 'on-seg' : ''}" data-act="oppmode" data-i="${i}" data-v="1" aria-pressed="${!!r.deferred}">Defer</button></div>
+${r.deferred ? '' : `<label class="tog strong"><input type="checkbox" data-b="${p}.confirmed"${r.confirmed ? ' checked' : ''}> Customer confirmed the need</label>`}<button class="rm" data-act="rm" data-list="growth.rows" data-i="${i}">Remove</button></div>
+<div class="grid one" style="margin-top:12px">${F(r.deferred ? 'Reason to defer' : 'Agreed next step', p + '.next')}</div>
 <div class="ostat" data-live="opp:${i}">${oppStatus(r)}</div></div>`;
 }
 function rActions(q){
   const sugg = RISK_CATS.filter(([k]) => { const r = q.risks[k]; return (r.rating === 'R' || r.rating === 'Y') && !q.actions.some(a => a.risk === k); });
-  return `<section class="blk"><h2>Action plan</h2><p class="sub">Every action needs an owner, a date, and a way to know it worked. Retention actions stay out of the customer recap unless you tick the box.</p>
+  return `<section class="blk"><h2>Action plan</h2><p class="sub">Every action needs an owner, a date, and a way to know it worked.</p>
 ${sugg.length ? `<div class="sugg"><span>From your risk ratings</span>${sugg.map(([k, n]) => `<button class="chip" data-act="riskact" data-k="${k}">Add action: ${n.toLowerCase()} risk</button>`).join('')}</div>` : ''}
 ${q.actions.map(actRow).join('')}
 <div class="templ"><span>Quick add</span>${TEMPL.map((t, i) => `<button class="chip" data-act="templ" data-i="${i}">${t[0]}</button>`).join('')}<button class="chip" data-act="add" data-list="actions">Blank action</button></div></section>`;
@@ -584,49 +668,46 @@ ${q.actions.map(actRow).join('')}
 function actRow(a, i){
   const p = `actions.${i}`;
   return `<div class="row act t-${(a.type||'').toLowerCase()}"><div class="grid">${F('Action', p + '.action', {full:1})}${F('Type', p + '.type', {opts:TYPES})}${F('Owner', p + '.owner')}${F('Due', p + '.due', {type:'date'})}${F('Success measure', p + '.measure')}</div>
-<div class="rowfoot"><label class="tog"><input type="checkbox" data-b="${p}.share"${a.share ? ' checked' : ''}> Include in customer recap</label><button class="rm" data-act="rm" data-list="actions" data-i="${i}">Remove</button></div></div>`;
+<div class="rowfoot"><button class="rm" data-act="rm" data-list="actions" data-i="${i}">Remove</button></div></div>`;
 }
 function rClose(q){
-  const qs = quality(q), g = gaps(q);
-  return `<section class="blk score"><div class="dial">${dial(qs.total)}</div><div class="dims"><h2>QBR quality score</h2><p class="sub">Only you see this. It\u2019s for self-coaching and never appears in an export.</p>
-${qs.dims.map(([n, v]) => `<div class="dim"><span>${n}</span><div class="bar"><i style="width:${v*5}%"></i></div><b>${v}/20</b></div>`).join('')}</div></section>
+  const sc = scoreOf(q), g = sc.gaps, frozen = q.status === 'complete' && q.frozen;
+  return `<section class="blk score"><div class="dial">${dial(sc.total)}</div><div class="dims"><h2>QBR quality score</h2><p class="sub">Only you see this, and it never appears in the log.${frozen ? ` Frozen when you completed this QBR on ${esc(fmtDate(q.completedAt))}; reopen it to recalculate.` : ''}</p>
+${sc.dims.map(([n, v]) => `<div class="dim"><span>${n}</span><div class="bar"><i style="width:${v*5}%"></i></div><b>${v}/20</b></div>`).join('')}</div></section>
 <section class="blk"><h2>${g.length ? `${g.length} gap${g.length > 1 ? 's' : ''} to close` : 'No gaps. Every required field is captured.'}</h2>
-${g.length ? `<p class="sub">You can still complete this QBR. The gap count stays on its archive card until you close them.</p><ul class="gaps">${g.map(x => `<li><button data-act="step" data-step="${x.step}"><span>${esc(x.label)}</span><small>${STEPS.find(s => s.id === x.step).title}</small></button></li>`).join('')}</ul>` : ''}</section>
-<section class="blk"><h2>Four questions before you log it</h2><ul class="four">
-<li><b>Do I understand the business?</b> Can I explain how they operate, make money, and define success?</li>
-<li><b>Is the customer getting value?</b> Can I point to outcomes, gaps, and what needs to improve?</li>
-<li><b>What could put retention at risk?</b> Do I know the risks, evidence, owner, and mitigation plan?</li>
-<li><b>What happens next?</b> Are there customer-aligned priorities with measurable actions?</li></ul></section>
+${g.length ? `<p class="sub">${frozen ? 'Gaps as of completion.' : 'You can still complete this QBR. The gap count stays on its archive card.'}</p><ul class="gaps">${g.map(x => `<li><button data-act="step" data-step="${x.step}"><span>${esc(x.label)}</span><small>${stepTitle(STEPS.find(s => s.id === x.step), q)}</small></button></li>`).join('')}</ul>` : ''}</section>
 <section class="blk"><h2>Internal notes</h2><div class="grid one">${F('Anything else for the log','notes',{rows:3})}</div></section>
-<section class="blk"><h2>Export</h2>
-<div class="tabs" role="tablist">${[['log','Odoo log note'],['recap','Customer recap']].map(([k, l]) => `<button role="tab" aria-selected="${state.exportTab === k}" class="${state.exportTab === k ? 'on' : ''}" data-act="etab" data-k="${k}">${l}</button>`).join('')}</div>
-<p class="sub">${state.exportTab === 'log' ? 'Paste into the customer\u2019s chatter in Odoo. Includes risk ratings and internal owners.' : 'Safe to send. Leaves out risk ratings, hypotheses, internal notes, and any action not marked for the recap. It uses your notes as written, so give it a read first.'}</p>
-<pre class="preview" id="preview">${esc(exportText(q, state.exportTab))}</pre>
+<section class="blk"><h2>Odoo log note</h2><p class="sub">Paste into the customer\u2019s chatter in Odoo.</p>
+<pre class="preview" id="preview">${esc(logText(q))}</pre>
 <div class="btns"><button class="btn" data-act="copy">Copy text</button><button class="btn" data-act="txt">Download .txt</button><button class="btn" data-act="pdf">Save as PDF</button></div></section>
 <section class="blk complete">${q.status === 'complete' ? `<p>Completed ${esc(fmtDate(q.completedAt))}. Filed under ${monthLabel(monthKey(q.completedAt))}.</p><button class="btn ghost" data-act="reopen">Reopen for edits</button>` : `<span class="mut">Completing files this QBR under ${monthLabel(monthKey(todayISO()))} in your archive.</span><button class="btn primary big" data-act="complete">Complete QBR</button>`}</section>`;
 }
 const STEP_R = {prep:rPrep, business:rBusiness, value:rValue, eco:rEco, risks:rRisks, growth:rGrowth, actions:rActions, close:rClose};
 
-/* ---------- exports ---------- */
-const exportText = (q, kind) => kind === 'recap' ? recapText(q) : logText(q);
+/* ---------- log export ---------- */
 const RATING = {G:'GREEN', Y:'YELLOW', R:'RED'};
 function logText(q){
-  const out = [], s = q.snapshot, h = health(q);
+  const out = [], s = q.snapshot, h = health(q), im = q.impl;
   const blockOut = (title, lines) => { const l = lines.filter(x => x !== null && x !== undefined && x !== ''); if(l.length){ out.push('', title, ...l); } };
   const L = (label, v) => filled(v) ? `${label}: ${String(v).trim()}` : null;
   out.push(`QBR LOG: ${q.company} (${fmtDate(q.qbrDate)})`);
+  if(implLine(q)) out.push(`Implementation: ${implLine(q)}.`);
   out.push(`Status: ${q.status === 'complete' ? 'Complete' : 'In progress'}. Account health: ${h.label}${h.rated ? ` (${h.n.G} green, ${h.n.Y} yellow, ${h.n.R} red)` : ''}.`);
-  blockOut('ACCOUNT', [L('Industry', s.industry), L('Renewal', fmtDate(s.renewal)), L('Users', s.users), L('Hosting', [s.hosting, s.version].filter(Boolean).join(', ')), L('Apps', s.apps), L('Partner', s.partner), L('Custom and integrations', s.custom)]);
+  blockOut('ACCOUNT', [L('Industry', s.industry), L('Renewal', fmtDate(s.renewal)), s.implStatus === 'Live' ? L('Go-live', fmtDate(s.goLive)) : null, L('Users', s.users), L('Hosting', [s.hosting, s.version].filter(Boolean).join(', ')), L('Apps', s.apps), L('Custom and integrations', s.custom)]);
   blockOut('STAKEHOLDERS', q.stakeholders.filter(x => filled(x.name)).map(x => `- ${x.name}${filled(x.title) ? ', ' + x.title : ''}${x.roles.length ? ` [${x.roles.join(', ')}]` : ''}${x.changed ? ' (new or changed)' : ''}`));
   blockOut('PREVIOUS ACTIONS', q.carry.map(c => `- ${c.text}: ${c.status || 'not reviewed'}`));
-  blockOut('HYPOTHESES', q.hyp.filter(filled).map(x => `- ${x}`));
+  blockOut('HYPOTHESIS', [L('Expected', q.hyp[0]), L('Confirm with', q.hyp[1]), L('Also', q.hyp[2])]);
   const b = q.business, d = b.deep;
   blockOut('BUSINESS AND GOALS', [
     b.priorities.some(filled) ? 'Priorities:\n' + b.priorities.filter(filled).map((p, i) => `  ${i+1}. ${p}`).join('\n') : null,
     L('What changed', b.changes), L('Revenue model', b.revenue), L('Leadership metrics', b.metrics),
     L('Deep dive, current state', d.current), L('Deep dive, people and systems', d.people), L('Deep dive, friction and impact', d.friction), L('Deep dive, desired outcome', d.outcome), L('Deep dive, next step', d.next)]);
-  const v = q.value;
-  blockOut('VALUE AND ADOPTION', [L('Strongest result', v.result), L('Where people leave Odoo', v.leave), L('Unmet expectation', v.unmet), L('Adoption notes', v.notes)]);
+  if(inImpl(q)){
+    blockOut('IMPLEMENTATION PROGRESS', [L('Phase', im.phase), L('Target go-live', fmtDate(im.target)), L('Status', im.track), L('Biggest blocker', im.blocker), s.implMethod === 'Success Pack' ? L('Success Pack hours remaining', im.hours) : null, L('Already live', im.live)]);
+  } else {
+    const v = q.value;
+    blockOut('VALUE AND ADOPTION', [L('Strongest result', v.result), L('Where people leave Odoo', v.leave), L('Unmet expectation', v.unmet), L('Adoption notes', v.notes)]);
+  }
   const er = q.eco.rows.filter(r => filled(r.tool));
   blockOut('SOFTWARE ECOSYSTEM', [
     ...er.map(r => `- ${r.tool}${r.dept ? ` (${r.dept})` : ''}${filled(r.cost) ? ` | ${r.cost}/yr` : ''}${r.renewal ? ` | renews ${fmtDate(r.renewal)}` : ''}${r.fit ? ` | ${r.fit}` : ''}`),
@@ -637,22 +718,12 @@ function logText(q){
     return t; }), L('Customer quotes', q.riskQuotes)]);
   const gr = q.growth.rows.filter(r => filled(r.need));
   blockOut('GROWTH OPPORTUNITIES', [
-    ...gr.map(r => { const t = TESTS.filter(([k]) => r.tests && r.tests[k]).length; const st = isQualified(r) ? 'Qualified' : filled(r.defer) ? 'Deferred' : 'Not qualified';
-      return `- ${r.need}${r.area ? ` [${r.area}]` : ''}: ${st}, ${t}/5 tests${filled(r.stakeholder) ? `. Stakeholder: ${r.stakeholder}` : ''}${filled(r.next) ? `. Next: ${r.next}` : ''}${filled(r.defer) ? `. Deferred because: ${r.defer}` : ''}`; }),
-    q.growth.none && !gr.length ? 'None identified this quarter.' : null]);
+    ...gr.map(r => { const t = TESTS.filter(([k]) => r.tests && r.tests[k]).length;
+      if(r.deferred) return `- ${r.need}${r.area ? ` [${r.area}]` : ''}: Deferred${filled(r.next) ? `. Reason: ${r.next}` : ''}`;
+      return `- ${r.need}${r.area ? ` [${r.area}]` : ''}: ${isQualified(r) ? 'Qualified' : 'Not qualified'}, ${t}/5 tests${filled(r.stakeholder) ? `. Stakeholder: ${r.stakeholder}` : ''}${filled(r.next) ? `. Next: ${r.next}` : ''}`; }),
+    q.growth.none && !gr.length && !inImpl(q) ? 'None identified this quarter.' : null]);
   blockOut('ACTION PLAN', q.actions.filter(a => filled(a.action)).map(a => `- ${a.type ? `[${a.type}] ` : ''}${a.action}${filled(a.owner) ? `. Owner: ${a.owner}` : ''}${a.due ? `. Due: ${fmtDate(a.due)}` : ''}${filled(a.measure) ? `. Measure: ${a.measure}` : ''}`));
   blockOut('NOTES', [filled(q.notes) ? q.notes.trim() : null]);
-  return out.join('\n');
-}
-function recapText(q){
-  const out = [`${q.company} QBR recap, ${fmtDate(q.qbrDate)}`, '', 'Thank you for the time today. Here\u2019s a summary of what we covered and what happens next.'];
-  const sec = (title, lines) => { const l = lines.filter(filled); if(l.length) out.push('', title, ...l); };
-  sec('Your priorities for the next 12 months', q.business.priorities.filter(filled).map((p, i) => `${i+1}. ${p.trim()}`));
-  sec('What\u2019s working', [q.value.result.trim()]);
-  sec('Where we\u2019ll focus', [q.value.leave, q.value.unmet].filter(filled).map(x => `- ${x.trim()}`));
-  sec('Opportunities we agreed to explore', q.growth.rows.filter(r => filled(r.need) && isQualified(r)).map(r => `- ${r.need.trim()}${r.area ? ` (${r.area})` : ''}. Next step: ${r.next.trim()}`));
-  sec('Next steps', q.actions.filter(a => filled(a.action) && a.share).map(a => `- ${a.action.trim()}${filled(a.owner) ? `. Owner: ${a.owner.trim()}` : ''}${a.due ? `. Target date: ${fmtDate(a.due)}` : ''}`));
-  out.push('', 'If I missed anything or got something wrong, let me know and I\u2019ll update it.');
   return out.join('\n');
 }
 function download(name, text, type){
@@ -670,41 +741,51 @@ async function copyText(t){
 }
 
 /* ---------- views ---------- */
+const footer = () => `<footer class="ver">QBR Workbook v${APP_VERSION}</footer>`;
 function stepsHTML(q){
-  const c = checks(q); let ph = '', h = '';
+  const c = checks(q), sc = scoreOf(q); let ph = '', h = '';
   STEPS.forEach(s => {
     if(s.phase !== ph){ ph = s.phase; h += `<div class="ph">${ph}</div>`; }
     const p = prog(c[s.id]), isClose = s.id === 'close';
-    h += `<button class="step${state.step === s.id ? ' on' : ''}" data-act="step" data-step="${s.id}"${state.step === s.id ? ' aria-current="step"' : ''}>${isClose ? `<span class="ring-num" aria-hidden="true">${quality(q).total}</span>` : ring(p.p)}<span>${s.title}</span><small>${isClose ? gaps(q).length + ' gaps' : p.d + '/' + p.t}</small></button>`;
+    h += `<button class="step${state.step === s.id ? ' on' : ''}" data-act="step" data-step="${s.id}"${state.step === s.id ? ' aria-current="step"' : ''}>${isClose ? `<span class="ring-num" aria-hidden="true">${sc.total}</span>` : ring(p.p)}<span>${stepTitle(s, q)}</span><small>${isClose ? sc.gaps.length + ' gaps' : p.d + '/' + p.t}</small></button>`;
   });
   return h;
 }
-function headHTML(q){
-  const h = health(q), pct = Math.round(overall(q) * 100);
-  return `<h1>${esc(q.company) || 'Untitled QBR'}</h1><div class="meta"><span>${esc(fmtDate(q.qbrDate))}</span><span class="pill${q.status === 'complete' ? ' done' : ''}">${q.status === 'complete' ? 'Complete' : 'In progress'}</span><span class="pill h-${h.cls}">${h.label}</span></div>
-<div class="hs"><div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Required fields captured"><i style="width:${pct}%"></i></div><span>${pct}% captured</span><span id="saved" class="saved"></span></div>`;
+function headLive(q){
+  const h = health(q), il = implLine(q);
+  return `<span class="pill${q.status === 'complete' ? ' done' : ''}">${q.status === 'complete' ? 'Complete' : 'In progress'}</span>${il ? `<span class="pill">${esc(il)}</span>` : ''}<span class="pill h-${h.cls}">${h.label}</span>`;
 }
-function navHTML(){
+function headProg(q){
+  const pct = Math.round(overall(q) * 100);
+  return `<div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Required fields captured"><i style="width:${pct}%"></i></div><span>${pct}% captured</span><span id="saved" class="saved"></span>`;
+}
+function headHTML(q){
+  return `<div class="hrow"><h1>${esc(q.company) || 'Untitled QBR'}</h1><button class="rename" data-act="rename">Rename</button></div>
+<div class="meta"><label class="hdate">QBR date <input type="date" data-b="qbrDate" value="${esc(q.qbrDate)}"></label><span class="metalive" id="headLive">${headLive(q)}</span></div>
+<div class="hs" id="headProg">${headProg(q)}</div>`;
+}
+function navHTML(q){
   const i = STEPS.findIndex(s => s.id === state.step), p = STEPS[i-1], n = STEPS[i+1];
-  return `<div class="stepnav">${p ? `<button class="btn ghost" data-act="step" data-step="${p.id}">Back to ${p.title.toLowerCase()}</button>` : '<span></span>'}${n ? `<button class="btn primary" data-act="step" data-step="${n.id}">Continue to ${n.title.toLowerCase()}</button>` : ''}</div>`;
+  return `<div class="stepnav">${p ? `<button class="btn ghost" data-act="step" data-step="${p.id}">Back to ${stepTitle(p, q).toLowerCase()}</button>` : '<span></span>'}${n ? `<button class="btn primary" data-act="step" data-step="${n.id}">Continue to ${stepTitle(n, q).toLowerCase()}</button>` : ''}</div>`;
 }
 function renderWork(){
   const q = cur(); if(!q){ state.view = 'archive'; return render(); }
   const y = window.scrollY;
-  app.innerHTML = `<div class="wb"><nav class="steps" id="steps" aria-label="QBR steps">${stepsHTML(q)}</nav><div class="pane"><div class="head" id="head">${headHTML(q)}</div><div id="body">${STEP_R[state.step](q)}</div>${navHTML()}</div></div>`;
+  app.innerHTML = `<div class="wb"><nav class="steps" id="steps" aria-label="QBR steps">${stepsHTML(q)}</nav><div class="pane"><div class="head" id="head">${headHTML(q)}</div><div id="body">${STEP_R[state.step](q)}</div>${navHTML(q)}</div></div>${footer()}`;
   window.scrollTo(0, y);
   const on = document.querySelector('.step.on'); if(on && window.innerWidth <= 820) on.scrollIntoView({inline:'center', block:'nearest'});
 }
 function refreshLive(q){
   const st = $('#steps'); if(st){ const sl = st.scrollLeft; st.innerHTML = stepsHTML(q); st.scrollLeft = sl; }
-  const hd = $('#head'); if(hd) hd.innerHTML = headHTML(q);
+  const hl = $('#headLive'); if(hl) hl.innerHTML = headLive(q);
+  const hp = $('#headProg'); if(hp) hp.innerHTML = headProg(q);
   document.querySelectorAll('[data-live]').forEach(el => {
     const [k, i] = el.dataset.live.split(':');
     if(k === 'opp') el.innerHTML = oppStatus(q.growth.rows[+i]);
     else if(k === 'health') el.innerHTML = healthSum(q);
     else if(k === 'eco') el.textContent = ecoTotal(q);
   });
-  const pv = $('#preview'); if(pv) pv.textContent = exportText(q, state.exportTab);
+  const pv = $('#preview'); if(pv) pv.textContent = logText(q);
 }
 function renderArchive(){
   const cos = new Set(db.qbrs.map(q => q.company.trim().toLowerCase())).size;
@@ -712,7 +793,7 @@ function renderArchive(){
   if(db.lastBackup){ const days = Math.floor((new Date(todayISO()) - new Date(db.lastBackup)) / 864e5); bk = `Last backup ${fmtDate(db.lastBackup)}${days > 30 ? ', over a month ago. Export a fresh one.' : '.'}`; }
   app.innerHTML = `<div class="arc"><div class="arc-h"><div><h1>Your QBRs</h1><p class="sub">${db.qbrs.length} on file across ${cos} compan${cos === 1 ? 'y' : 'ies'}, saved in this browser. ${bk}</p></div><button class="btn primary" data-act="new">Start a QBR</button></div>
 ${db.qbrs.length ? `<input class="search" type="search" id="search" placeholder="Search by company" aria-label="Search by company" value="${esc(state.search)}">` : ''}
-<div id="results"></div></div>`;
+<div id="results"></div></div>${footer()}`;
   renderResults();
 }
 function renderResults(){
@@ -732,9 +813,10 @@ function renderResults(){
     + keys.map(k => `<h2 class="gh">${monthLabel(k)} <small>${groups[k].length}</small></h2><div class="cards">${groups[k].sort((a, b) => a.company.localeCompare(b.company)).map(card).join('')}</div>`).join('');
 }
 function card(q){
-  const h = health(q), qs = quality(q), g = gaps(q).length, hist = db.qbrs.filter(x => sameCo(x.company, q.company)).length;
+  const h = health(q), sc = scoreOf(q), g = sc.gaps.length, hist = db.qbrs.filter(x => sameCo(x.company, q.company)).length, il = implLine(q);
   return `<article class="card"><button class="cmain" data-act="open" data-id="${q.id}"><b>${esc(q.company) || 'Untitled QBR'}</b><span class="cmeta"><span>${esc(fmtDate(q.qbrDate))}</span>${hist > 1 ? `<span>${hist} QBRs on file</span>` : ''}</span>
-<span class="cbadges"><span class="pill h-${h.cls}">${h.label}</span><span class="pill">Score ${qs.total}</span>${g ? `<span class="pill warn">${g} gap${g > 1 ? 's' : ''}</span>` : '<span class="pill done">No gaps</span>'}</span></button>
+${il ? `<span class="cmeta"><span>${esc(il)}</span></span>` : ''}
+<span class="cbadges"><span class="pill h-${h.cls}">${h.label}</span><span class="pill">Score ${sc.total}</span>${g ? `<span class="pill warn">${g} gap${g > 1 ? 's' : ''}</span>` : '<span class="pill done">No gaps</span>'}</span></button>
 <div class="cact">${q.status === 'complete' ? `<button data-act="next" data-id="${q.id}">Start next QBR</button>` : `<button data-act="open" data-id="${q.id}">Continue</button>`}<button class="del" data-act="del" data-id="${q.id}">Delete</button></div></article>`;
 }
 function render(){ if(state.view === 'work') renderWork(); else renderArchive(); }
@@ -750,6 +832,12 @@ function openNew(){
 <div class="btns" style="justify-content:flex-end"><button class="btn ghost" data-act="close-modal">Cancel</button><button class="btn primary" data-act="create">Start QBR</button></div>`);
   setTimeout(() => $('#newCo').focus(), 30);
 }
+function openRename(q){
+  modal(`<h2>Rename</h2><label class="f full"><span class="fl">Company</span><input id="renameCo" value="${esc(q.company)}" autocomplete="off"></label>
+<p class="sub">Use the same spelling as earlier QBRs so this one stays linked to that company\u2019s history.</p>
+<div class="btns" style="justify-content:flex-end"><button class="btn ghost" data-act="close-modal">Cancel</button><button class="btn primary" data-act="do-rename">Save name</button></div>`);
+  setTimeout(() => { const i = $('#renameCo'); i.focus(); i.select(); }, 30);
+}
 function updNewHint(v){
   const h = $('#newHint'); if(!h) return;
   const p = filled(v) && priorFor(v);
@@ -757,7 +845,9 @@ function updNewHint(v){
 }
 function openQBR(q){ state.id = q.id; state.view = 'work'; state.step = q.status === 'complete' ? 'close' : 'prep'; render(); window.scrollTo(0, 0); }
 function doComplete(){
-  const q = cur(); q.status = 'complete'; q.completedAt = todayISO(); touch(q); closeModal(); renderWork();
+  const q = cur(), qs = quality(q);
+  q.frozen = {total:qs.total, dims:qs.dims, gaps:gaps(q)};
+  q.status = 'complete'; q.completedAt = todayISO(); touch(q); closeModal(); renderWork();
   toast(`QBR completed and filed under ${monthLabel(monthKey(q.completedAt))}`);
 }
 
@@ -791,6 +881,12 @@ document.addEventListener('click', e => {
       if(!co){ toast('Add a company name to start.'); $('#newCo').focus(); return; }
       closeModal(); openQBR(createQBR(co)); break;
     }
+    case 'rename': openRename(q); break;
+    case 'do-rename': {
+      const co = ($('#renameCo').value || '').trim();
+      if(!co){ toast('Add a company name.'); return; }
+      q.company = co; closeModal(); rerender(); toast('Renamed'); break;
+    }
     case 'open': openQBR(db.qbrs.find(x => x.id === b.dataset.id)); break;
     case 'next': { const src = db.qbrs.find(x => x.id === b.dataset.id); openQBR(createQBR(src.company)); toast('Snapshot, stakeholders, and actions carried forward'); break; }
     case 'del': {
@@ -801,13 +897,21 @@ document.addEventListener('click', e => {
       break;
     }
     case 'step': state.step = b.dataset.step; renderWork(); window.scrollTo(0, 0); break;
+    case 'setv': {
+      const path = b.dataset.path, v = b.dataset.v, was = getP(q, path);
+      setP(q, path, v);
+      if(path === 'snapshot.implStatus' && was === 'Unknown' && v !== 'Unknown' && state.step === 'business') q.snapshot.confirmedOnCall = true;
+      if(path === 'snapshot.implStatus' && was === 'Unknown' && v !== 'Unknown')
+        toast(v === 'In implementation' ? 'Status set. Value and adoption is now Implementation progress.' : 'Status set to Live.');
+      rerender(); break;
+    }
     case 'add': {
       const path = b.dataset.list, arr = getP(q, path);
       const fresh = {
         'stakeholders': () => ({name:'', title:'', roles:[], changed:false}),
         'eco.rows': () => ({tool:'', dept:'', cost:'', renewal:'', fit:''}),
-        'growth.rows': () => ({need:'', area:'', stakeholder:'', next:'', defer:'', tests:{}, confirmed:false}),
-        'actions': () => ({action:'', type:'', owner:'', due:'', measure:'', share:true})
+        'growth.rows': () => ({need:'', area:'', stakeholder:'', next:'', deferred:false, tests:{}, confirmed:false}),
+        'actions': () => ({action:'', type:'', owner:'', due:'', measure:''})
       }[path]();
       arr.push(fresh);
       if(path === 'eco.rows') q.eco.none = false;
@@ -820,30 +924,30 @@ document.addEventListener('click', e => {
     case 'role': { const r = q.stakeholders[i].roles, role = b.dataset.role, k = r.indexOf(role); k < 0 ? r.push(role) : r.splice(k, 1); rerender(); break; }
     case 'carry': { const c = q.carry[i]; c.status = c.status === b.dataset.s ? '' : b.dataset.s; rerender(); break; }
     case 'rate': { const r = q.risks[b.dataset.k]; r.rating = r.rating === b.dataset.v ? '' : b.dataset.v; rerender(); break; }
+    case 'oppmode': q.growth.rows[i].deferred = b.dataset.v === '1'; rerender(); break;
     case 'riskact': {
       const k = b.dataset.k, r = q.risks[k], n = RISK_CATS.find(c => c[0] === k)[1];
-      q.actions.push({action:`Mitigate ${n.toLowerCase()} risk: `, type:'Retention', owner:r.owner||'', due:r.checkpoint||'', measure:'Risk reduced against agreed criteria', share:false, risk:k});
+      q.actions.push({action:`Mitigate ${n.toLowerCase()} risk: `, type:'Retention', owner:r.owner||'', due:r.checkpoint||'', measure:'Risk reduced against agreed criteria', risk:k});
       rerender(); break;
     }
-    case 'templ': { const t = TEMPL[i]; q.actions.push({action:t[0], type:t[1], owner:'', due:'', measure:t[2], share:t[1] !== 'Retention'}); rerender(); break; }
-    case 'etab': state.exportTab = b.dataset.k; renderWork(); break;
-    case 'copy': copyText(exportText(q, state.exportTab)); break;
-    case 'txt': download(`${slug(q.company)}-qbr-${state.exportTab}-${q.qbrDate}.txt`, exportText(q, state.exportTab), 'text/plain'); toast('Downloaded'); break;
+    case 'templ': { const t = TEMPL[i]; q.actions.push({action:t[0], type:t[1], owner:'', due:'', measure:t[2]}); rerender(); break; }
+    case 'copy': copyText(logText(q)); break;
+    case 'txt': download(`${slug(q.company)}-qbr-log-${q.qbrDate}.txt`, logText(q), 'text/plain'); toast('Downloaded'); break;
     case 'pdf': {
-      $('#print').innerHTML = `<h1>${esc(q.company)} ${state.exportTab === 'log' ? 'QBR log' : 'QBR recap'}</h1><p>${esc(fmtDate(q.qbrDate))}</p><pre>${esc(exportText(q, state.exportTab))}</pre>`;
+      $('#print').innerHTML = `<h1>${esc(q.company)} QBR log</h1><p>${esc(fmtDate(q.qbrDate))}</p><pre>${esc(logText(q))}</pre>`;
       window.print(); break;
     }
     case 'complete': {
       const g = gaps(q).length;
-      if(g) modal(`<h2>Complete with ${g} gap${g > 1 ? 's' : ''}?</h2><p class="sub">You can close them later. The archive card shows the gap count until you do.</p><div class="btns" style="justify-content:flex-end"><button class="btn ghost" data-act="close-modal">Keep working</button><button class="btn primary" data-act="do-complete">Complete QBR</button></div>`);
+      if(g) modal(`<h2>Complete with ${g} gap${g > 1 ? 's' : ''}?</h2><p class="sub">You can close them later. The archive card shows the gap count as of completion.</p><div class="btns" style="justify-content:flex-end"><button class="btn ghost" data-act="close-modal">Keep working</button><button class="btn primary" data-act="do-complete">Complete QBR</button></div>`);
       else doComplete();
       break;
     }
     case 'do-complete': doComplete(); break;
-    case 'reopen': q.status = 'draft'; q.completedAt = null; rerender(); toast('Reopened. Complete it again when you\u2019re done.'); break;
+    case 'reopen': q.status = 'draft'; q.completedAt = null; q.frozen = null; rerender(); toast('Reopened. Complete it again when you\u2019re done.'); break;
     case 'export-json': {
       if(!db.qbrs.length){ toast('Nothing to back up yet.'); return; }
-      download(`qbr-workbook-backup-${todayISO()}.json`, JSON.stringify({app:'qbr-workbook', version:1, exportedAt:new Date().toISOString(), qbrs:db.qbrs}, null, 2), 'application/json');
+      download(`qbr-workbook-backup-${todayISO()}.json`, JSON.stringify({app:'qbr-workbook', version:APP_VERSION, exportedAt:new Date().toISOString(), qbrs:db.qbrs}, null, 2), 'application/json');
       db.lastBackup = todayISO(); save(); if(state.view === 'archive') renderArchive(); toast('Backup downloaded');
       break;
     }
@@ -852,6 +956,7 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape' && !$('#modal').hidden) closeModal();
   if(e.key === 'Enter' && e.target.id === 'newCo'){ e.preventDefault(); document.querySelector('[data-act="create"]').click(); }
+  if(e.key === 'Enter' && e.target.id === 'renameCo'){ e.preventDefault(); document.querySelector('[data-act="do-rename"]').click(); }
 });
 $('#importFile').addEventListener('change', e => {
   const f = e.target.files[0]; if(!f) return;
